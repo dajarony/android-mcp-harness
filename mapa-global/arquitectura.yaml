@@ -7,7 +7,7 @@
 
 system: android-mcp-harness
 version: 0.1.0
-last_updated: 2026-08-09
+last_updated: 2026-08-10
 sume_version: "1.0"
 
 routes:
@@ -22,6 +22,20 @@ routes:
     contrato_entrada: contratos/demo_settings.py
     contrato_salida: contratos/demo_settings.py
     salida: salidas/consola/demo_settings.py
+  - path: mcp.stdio
+    method: "python -m entradas.mcp.server"
+    entrada: entradas/mcp/server.py
+    controlador: logica/servicios/mcp_server/controller.py
+    logica:
+      - logica/seguridad/emulador.py
+      - logica/infraestructura/adb.py
+      - logica/infraestructura/appium.py
+      - logica/servicios/mcp_server/gate.py
+      - logica/controladores/demo_settings.py
+      - logica/evidencias/capturas.py
+    contrato_entrada: contratos/mcp.py
+    contrato_salida: contratos/mcp.py
+    salida: "MCP structured output over local stdio"
 
 contracts:
   - name: SettingsDemoConfig
@@ -35,6 +49,18 @@ contracts:
     used_by:
       - logica/controladores/demo_settings.py
       - salidas/consola/demo_settings.py
+  - name: McpToolResult
+    file: contratos/mcp.py
+    used_by:
+      - entradas/mcp/server.py
+      - logica/servicios/mcp_server/controller.py
+  - name: HarnessError
+    file: contratos/mcp.py
+    used_by:
+      - logica/seguridad/emulador.py
+      - logica/infraestructura/adb.py
+      - logica/infraestructura/appium.py
+      - logica/servicios/mcp_server/gate.py
 
 modules:
   - name: command-entry
@@ -61,9 +87,37 @@ modules:
     type: Salida
     file: salidas/consola/demo_settings.py
     depends_on: [demo-contract]
+  - name: mcp-stdio-entry
+    type: Entrada
+    file: entradas/mcp/server.py
+    depends_on: [android-mcp-controller, mcp-contract]
+  - name: android-mcp-controller
+    type: Lógica
+    file: logica/servicios/mcp_server/controller.py
+    depends_on: [emulator-operation-gate, adb-read-adapter, appium-status-adapter, demo-controller]
+  - name: emulator-operation-gate
+    type: Lógica
+    file: logica/servicios/mcp_server/gate.py
+    depends_on: [mcp-contract]
+  - name: emulator-security-boundary
+    type: Lógica
+    file: logica/seguridad/emulador.py
+    depends_on: [mcp-contract]
+  - name: adb-read-adapter
+    type: Lógica
+    file: logica/infraestructura/adb.py
+    depends_on: [emulator-security-boundary, mcp-contract]
+  - name: appium-status-adapter
+    type: Lógica
+    file: logica/infraestructura/appium.py
+    depends_on: [emulator-security-boundary, mcp-contract]
 
 specifications:
   - name: Android Emulator MCP Server
     file: docs/faser/mcp-server.faser.md
-    status: draft
-    purpose: "Contrato funcional previo a la implementación del gateway MCP"
+    status: implemented
+    purpose: "Contrato funcional del gateway MCP stdio local"
+  - name: MCP Android Emulator ECA v1
+    file: docs/eca/mcp-emulator-v1.md
+    status: executable
+    purpose: "Oráculo independiente y campaña real del comportamiento MCP"

@@ -20,7 +20,12 @@ from typing import Any
 
 from contratos.demo_settings import SettingsDemoConfig, SettingsDemoResult
 from logica.evidencias.capturas import save_screenshot
-from logica.navegacion.ajustes import assert_settings_foreground, navigate_to_apps
+from logica.navegacion.ajustes import (
+    SettingsForegroundError,
+    UiElementNotFoundError,
+    assert_settings_foreground,
+    navigate_to_apps,
+)
 from logica.sesiones.appium import close_driver, create_settings_driver
 
 
@@ -41,7 +46,17 @@ def run_settings_demo(config: SettingsDemoConfig) -> SettingsDemoResult:
                 screenshot_path = str(save_screenshot(driver, "failure"))
             except Exception:
                 screenshot_path = None
-        return SettingsDemoResult(False, f"{type(exc).__name__}: {exc}", screenshot_path)
+        error_code = "INTERNAL_ERROR"
+        if isinstance(exc, SettingsForegroundError):
+            error_code = "SETTINGS_FOREGROUND_FAILED"
+        elif isinstance(exc, UiElementNotFoundError):
+            error_code = "UI_ELEMENT_NOT_FOUND"
+        return SettingsDemoResult(
+            False,
+            f"{type(exc).__name__}: {exc}",
+            screenshot_path,
+            error_code,
+        )
     finally:
         if driver is not None:
             close_driver(driver)

@@ -29,6 +29,29 @@
 
 ---
 
+## 2026-08-10 — Regresión ECA de evidencia consecutiva
+
+**Archivos afectados:**
+
+- Actualizada `logica/evidencias/capturas.py`.
+- Actualizados FASER, oráculo ECA y campaña del emulador.
+
+**Motivo:**
+
+- La campaña `SEQ-EVID-1` demostró que dos capturas dentro del mismo segundo
+  compartían nombre y la segunda sobrescribía la evidencia de la primera.
+
+**Impacto:**
+
+- Las rutas añaden microsegundos; bajo el bloqueo de operación ya no colisionan
+  en reintentos consecutivos.
+- La regresión exige dos artefactos distintos y existentes antes de declarar
+  verde la campaña.
+
+**Autor:** Codex, con autorización del propietario.
+
+---
+
 ## 2026-08-09 — FASER del servidor MCP local
 
 **Archivos afectados:**
@@ -46,5 +69,32 @@
 
 - No se añade código de ejecución ni se abre ninguna capacidad nueva.
 - La futura implementación queda limitada a las cinco herramientas declaradas.
+
+**Autor:** Codex, con autorización del propietario.
+
+---
+
+## 2026-08-10 — Servidor MCP local y campaña ECA del emulador
+
+**Archivos afectados:**
+
+- Añadidos `entradas/mcp/`, `contratos/mcp.py`, adaptadores ADB/Appium,
+  frontera de seguridad y controlador MCP.
+- Añadidos contrato de ciclo de vida y oráculo `docs/eca/mcp-emulator-v1.md`.
+- Actualizados FASER, mapa global, requisitos y README.
+- Añadidas regresiones unitarias y campaña opcional contra el emulador real.
+
+**Motivo:**
+
+- Exponer una frontera MCP local, mínima y trazable para que un cliente futuro
+  pueda observar y navegar el AVD sin recibir ADB arbitrario ni red adicional.
+
+**Impacto:**
+
+- El servidor ofrece cuatro herramientas personalizadas por stdio.
+- Las lecturas usan comandos ADB fijos y no crean sesiones Appium; solo
+  `settings.open_apps` puede cambiar la UI del emulador.
+- La campaña ECA real verificó 3/3 invariantes: observación sin navegación,
+  navegación con evidencia y protocolo stdio en proceso independiente.
 
 **Autor:** Codex, con autorización del propietario.

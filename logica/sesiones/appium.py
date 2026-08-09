@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 from appium import webdriver
+from appium.webdriver.client_config import AppiumClientConfig
 from appium.options.android import UiAutomator2Options
 
 from contratos.demo_settings import SettingsDemoConfig
@@ -37,7 +38,12 @@ def create_settings_driver(config: SettingsDemoConfig) -> Any:
     options.no_reset = True
     options.set_capability("appium:forceAppLaunch", True)
     options.new_command_timeout = 60
-    return webdriver.Remote(config.appium_url, options=options)
+    client_config = AppiumClientConfig(
+        remote_server_addr=config.appium_url,
+        timeout=10,
+        direct_connection=False,
+    )
+    return webdriver.Remote(options=options, client_config=client_config)
 
 
 def close_driver(driver: Any) -> None:

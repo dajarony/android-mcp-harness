@@ -20,7 +20,8 @@ Python → Appium → UiAutomator2 → ADB → Android Emulator
 Fase 1: demo segura que abre Ajustes, localiza `Apps`, pulsa el elemento y guarda
 una captura en `artifacts/`.
 
-No incluye MCP, agentes, Auralis, Trinidad ni Glas todavía.
+No integra todavía agentes, Auralis, Trinidad ni Glas: serán clientes del MCP,
+no una ampliación de autoridad sobre Android.
 
 ## Preparación local
 
@@ -49,3 +50,27 @@ No incluye MCP, agentes, Auralis, Trinidad ni Glas todavía.
 
 El script solo se conecta al emulador `emulator-5554` salvo que se indique otro
 valor mediante `ANDROID_UDID`.
+
+## MCP local y campaña ECA
+
+El arnés ya expone un servidor MCP local por **stdio**, sin abrir un puerto de
+red. Sus cuatro herramientas son `emulator.get_status`, `ui.get_tree`,
+`screen.capture` y `settings.open_apps`. Las tres primeras son observación; la
+última es la única navegación declarada: Ajustes → Apps.
+
+Un cliente MCP, como Trinidad en una fase posterior, debe iniciar este comando:
+
+```powershell
+.\.venv\Scripts\python -m entradas.mcp.server
+```
+
+Para comprobar el comportamiento con el AVD y Appium activos, ejecutar la
+campaña ECA real:
+
+```powershell
+$env:ANDROID_MCP_RUN_EMULATOR = '1'
+.\.venv\Scripts\python -m unittest tests.test_mcp_emulator_e2e -v
+```
+
+La campaña comprueba observación sin cambio de pantalla, navegación con
+evidencia local y el protocolo stdio en un proceso separado.

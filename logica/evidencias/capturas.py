@@ -29,7 +29,9 @@ def build_screenshot_path(label: str) -> Path:
     """Allocate a timestamped, local-only evidence path."""
 
     ARTIFACTS.mkdir(exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    # The gate serializes emulator actions, but consecutive screenshots can still
+    # arrive within one second. Microseconds preserve each operation's evidence.
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     return ARTIFACTS / f"{stamp}-{label}.png"
 
 
@@ -38,4 +40,12 @@ def save_screenshot(driver: Any, label: str) -> Path:
 
     path = build_screenshot_path(label)
     driver.save_screenshot(str(path))
+    return path
+
+
+def save_png_artifact(payload: bytes, label: str) -> Path:
+    """Persist trusted PNG bytes gathered by a fixed read-only adapter."""
+
+    path = build_screenshot_path(label)
+    path.write_bytes(payload)
     return path

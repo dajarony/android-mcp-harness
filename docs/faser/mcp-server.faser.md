@@ -1,8 +1,8 @@
 ===============================================================
 Componente: Android Emulator MCP Server
 Tipo: Service / MCP Gateway
-Version: 0.1.0-draft
-Estado: Diseño — no implementado
+Version: 0.1.0
+Estado: Implementado y verificado en emulador local
 ===============================================================
 
 ## DEFINICIÓN
@@ -89,7 +89,8 @@ interno ni arranque de procesos.
 
 **Condición:** emulador y Appium disponibles; no hay navegación activa.
 
-**Acción:** abrir una sesión temporal, leer árbol UI y cerrarla.
+**Acción:** ejecutar la consulta ADB fija y de solo lectura `uiautomator dump`;
+extraer el XML y no abrir sesión Appium.
 
 **Resultado:** árbol estructurado y paquete visible, sin taps ni cambio UI.
 
@@ -99,8 +100,8 @@ interno ni arranque de procesos.
 
 **Condición:** emulador y Appium disponibles; no hay navegación activa.
 
-**Acción:** abrir una sesión temporal, guardar una captura bajo `artifacts/` y
-cerrar la sesión.
+**Acción:** ejecutar la consulta ADB fija y de solo lectura `screencap -p`,
+guardar una captura bajo `artifacts/` y no abrir sesión Appium.
 
 **Resultado:** `artifact_id` y ruta local; sin cambio UI intencionado.
 
@@ -133,6 +134,7 @@ cerrar la sesión.
 - Navegación usa selectores semánticos; coordenadas no forman parte del contrato.
 - Toda sesión abierta se cierra incluso con timeout o excepción.
 - La captura queda en `artifacts/`, directorio ignorado por Git.
+- Cada captura usa una ruta única incluso en reintentos dentro del mismo segundo.
 - Presupuesto: conexión ≤10 s, operación UI ≤30 s, espera de marcador ≤20 s.
 - El transporte es stdio local; no se abre puerto de red.
 
@@ -186,6 +188,8 @@ cerrar la sesión.
 
 - Se elige MCP por stdio local antes que HTTP para evitar exposición de red.
 - Se elige sesión temporal por operación para no dejar estado Appium huérfano.
+- Se elige ADB de solo lectura para árbol y captura: crear una sesión Appium
+  puede llevar una aplicación al frente y violaría la invariante de observación.
 - Se elige bloqueo único porque el emulador es un recurso global.
 - Se rechaza ADB shell arbitrario: rompería responsabilidad única y fronteras.
 - Se pospone Auralis, Trinidad y Glas: serán clientes del MCP, no parte de su

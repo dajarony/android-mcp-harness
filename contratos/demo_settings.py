@@ -35,3 +35,4 @@ class SettingsDemoResult:
     succeeded: bool
     detail: str
     screenshot_path: str | None = None
+    error_code: str | None = None
