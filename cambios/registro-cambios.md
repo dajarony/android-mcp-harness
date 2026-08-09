@@ -26,3 +26,25 @@
   registro.
 
 **Autor:** Codex, con autorización del propietario.
+
+---
+
+## 2026-08-09 — FASER del servidor MCP local
+
+**Archivos afectados:**
+
+- Creado `docs/faser/mcp-server.faser.md`.
+- Actualizado `mapa-global/arquitectura.yaml` con la especificación en estado
+  `draft`.
+
+**Motivo:**
+
+- Declarar autoridad, estados, efectos, errores y pruebas ECA antes de escribir
+  un servidor MCP que pueda controlar el emulador.
+
+**Impacto:**
+
+- No se añade código de ejecución ni se abre ninguna capacidad nueva.
+- La futura implementación queda limitada a las cinco herramientas declaradas.
+
+**Autor:** Codex, con autorización del propietario.

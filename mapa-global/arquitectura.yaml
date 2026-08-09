@@ -61,3 +61,9 @@ modules:
     type: Salida
     file: salidas/consola/demo_settings.py
     depends_on: [demo-contract]
+
+specifications:
+  - name: Android Emulator MCP Server
+    file: docs/faser/mcp-server.faser.md
+    status: draft
+    purpose: "Contrato funcional previo a la implementación del gateway MCP"
