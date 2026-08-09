@@ -1,0 +1,63 @@
+# SUME DOCBLOCK
+# Nombre: arquitectura
+# Tipo: Mapa global
+# Entradas: módulos y contratos del arnés.
+# Acciones: documenta las dependencias y la dirección de datos.
+# Salidas: mapa vivo para revisión humana o de agentes.
+
+system: android-mcp-harness
+version: 0.1.0
+last_updated: 2026-08-09
+sume_version: "1.0"
+
+routes:
+  - path: cli.settings_demo
+    method: "python main.py"
+    entrada: entradas/comandos/demo_settings.py
+    controlador: logica/controladores/demo_settings.py
+    logica:
+      - logica/sesiones/appium.py
+      - logica/navegacion/ajustes.py
+      - logica/evidencias/capturas.py
+    contrato_entrada: contratos/demo_settings.py
+    contrato_salida: contratos/demo_settings.py
+    salida: salidas/consola/demo_settings.py
+
+contracts:
+  - name: SettingsDemoConfig
+    file: contratos/demo_settings.py
+    used_by:
+      - entradas/comandos/demo_settings.py
+      - logica/sesiones/appium.py
+      - logica/controladores/demo_settings.py
+  - name: SettingsDemoResult
+    file: contratos/demo_settings.py
+    used_by:
+      - logica/controladores/demo_settings.py
+      - salidas/consola/demo_settings.py
+
+modules:
+  - name: command-entry
+    type: Entrada
+    file: entradas/comandos/demo_settings.py
+    depends_on: [demo-controller, demo-contract]
+  - name: demo-controller
+    type: Lógica
+    file: logica/controladores/demo_settings.py
+    depends_on: [appium-session, settings-navigation, screenshot-evidence]
+  - name: appium-session
+    type: Lógica
+    file: logica/sesiones/appium.py
+    depends_on: [demo-contract]
+  - name: settings-navigation
+    type: Lógica
+    file: logica/navegacion/ajustes.py
+    depends_on: []
+  - name: screenshot-evidence
+    type: Lógica
+    file: logica/evidencias/capturas.py
+    depends_on: []
+  - name: console-output
+    type: Salida
+    file: salidas/consola/demo_settings.py
+    depends_on: [demo-contract]

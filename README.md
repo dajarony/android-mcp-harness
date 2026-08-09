@@ -1,5 +1,13 @@
 # Android MCP Harness
 
+> Arquitectura SUME + STDG activa: [mapa global](mapa-global/arquitectura.yaml),
+> [registro de cambios](cambios/registro-cambios.md) y
+> [guía de estructura](SUME-README.md).
+
+El flujo ya no vive en un único script: entrada, contratos, sesión Appium,
+navegación, evidencia y salida están separados para que el futuro MCP escale sin
+mezclar responsabilidades.
+
 Harness local para observar y controlar un emulador Android mediante Appium,
 UiAutomator2 y ADB. El objetivo inicial es demostrar la cadena completa:
 

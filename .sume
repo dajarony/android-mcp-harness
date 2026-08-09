@@ -1,0 +1,10 @@
+# SUME configuration for android-mcp-harness
+version: "1.0"
+strict_docblock: true
+auto_update_arquitectura: true
+require_change_log: true
+folders:
+  - entradas
+  - logica
+  - salidas
+  - contratos
