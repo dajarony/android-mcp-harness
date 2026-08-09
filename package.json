@@ -1,0 +1,24 @@
+{
+  "name": "android-mcp-harness",
+  "version": "1.0.0",
+  "description": "Local Android emulator harness for MCP-ready UI automation.",
+  "scripts": {
+    "appium": "appium",
+    "doctor": "appium driver doctor uiautomator2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dajarony/android-mcp-harness.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dajarony/android-mcp-harness/issues"
+  },
+  "homepage": "https://github.com/dajarony/android-mcp-harness#readme",
+  "devDependencies": {
+    "appium": "^3.6.0",
+    "appium-uiautomator2-driver": "^8.2.2"
+  }
+}
