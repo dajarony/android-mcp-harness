@@ -41,20 +41,13 @@ def assert_settings_foreground(driver: Any) -> None:
 
 
 def navigate_to_apps(driver: Any) -> str:
-    """Open Apps and return its Android-version-specific screen marker."""
+    """Confirm the Apps list and return its Android-version-specific marker."""
 
     try:
-        apps = WebDriverWait(driver, 10).until(
-            lambda current: current.find_element(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().textContains("Apps")',
-            )
-        )
-        apps.click()
         marker = WebDriverWait(driver, 8).until(
             lambda current: current.find_element(
                 AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().textContains("See all")',
+                'new UiSelector().text("All apps")',
             )
         )
     except TimeoutException as exc:

@@ -98,3 +98,37 @@
   navegación con evidencia y protocolo stdio en proceso independiente.
 
 **Autor:** Codex, con autorización del propietario.
+
+---
+
+## 2026-08-10 — Control semántico Android verificado por ECA
+
+**Archivos afectados:**
+
+- Añadidos `contratos/ui_control.py`, lanzador Android y navegación semántica.
+- Ampliado MCP con listado de paquetes, apertura de app, toque, texto,
+  desplazamiento y volver.
+- Actualizados CMCF, FASER, mapa SUME y campaña ECA real.
+
+**Motivo:**
+
+- Permitir a un cliente MCP controlar el AVD mediante intenciones auditables,
+  sin coordenadas de entrada ni shell arbitraria.
+
+**Hallazgos ECA y correcciones:**
+
+- Android 16 restauraba una búsqueda previa de Settings; el flujo usa ahora la
+  intención fija `android.settings.APPLICATION_SETTINGS`.
+- Un toque que cambiaba de pantalla se reportaba como error al leer el elemento
+  después de pulsarlo; la etiqueta se obtiene antes del toque.
+- El `EditText` Compose no expone `resource-id`; se añadió el selector limitado
+  `input_hint`, sin aceptar XPath ni coordenadas libres.
+
+**Impacto:**
+
+- Tres secuencias ECA reales confirman Apps, toque/desplazamiento/volver y
+  búsqueda/escritura con evidencia propia.
+- El alcance sigue limitado al AVD configurado; no controla host ni teléfonos
+  físicos.
+
+**Autor:** Codex, con autorización del propietario.

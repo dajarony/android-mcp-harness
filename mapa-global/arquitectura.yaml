@@ -6,7 +6,7 @@
 # Salidas: mapa vivo para revisión humana o de agentes.
 
 system: android-mcp-harness
-version: 0.1.0
+version: 0.2.0
 last_updated: 2026-08-10
 sume_version: "1.0"
 
@@ -30,10 +30,14 @@ routes:
       - logica/seguridad/emulador.py
       - logica/infraestructura/adb.py
       - logica/infraestructura/appium.py
+      - logica/infraestructura/lanzador.py
+      - logica/navegacion/semantica.py
       - logica/servicios/mcp_server/gate.py
       - logica/controladores/demo_settings.py
       - logica/evidencias/capturas.py
-    contrato_entrada: contratos/mcp.py
+    contrato_entrada:
+      - contratos/mcp.py
+      - contratos/ui_control.py
     contrato_salida: contratos/mcp.py
     salida: "MCP structured output over local stdio"
 
@@ -61,6 +65,13 @@ contracts:
       - logica/infraestructura/adb.py
       - logica/infraestructura/appium.py
       - logica/servicios/mcp_server/gate.py
+
+  - name: SemanticSelector
+    file: contratos/ui_control.py
+    used_by:
+      - entradas/mcp/server.py
+      - logica/navegacion/semantica.py
+      - logica/servicios/mcp_server/controller.py
 
 modules:
   - name: command-entry
@@ -94,7 +105,7 @@ modules:
   - name: android-mcp-controller
     type: Lógica
     file: logica/servicios/mcp_server/controller.py
-    depends_on: [emulator-operation-gate, adb-read-adapter, appium-status-adapter, demo-controller]
+    depends_on: [emulator-operation-gate, adb-read-adapter, appium-status-adapter, demo-controller, app-launcher, semantic-navigation]
   - name: emulator-operation-gate
     type: Lógica
     file: logica/servicios/mcp_server/gate.py
@@ -112,6 +123,19 @@ modules:
     file: logica/infraestructura/appium.py
     depends_on: [emulator-security-boundary, mcp-contract]
 
+  - name: app-launcher
+    type: Logic
+    file: logica/infraestructura/lanzador.py
+    depends_on: [adb-read-adapter, emulator-security-boundary, ui-control-contract]
+  - name: semantic-navigation
+    type: Logic
+    file: logica/navegacion/semantica.py
+    depends_on: [ui-control-contract, appium-session]
+  - name: ui-control-contract
+    type: Contract
+    file: contratos/ui_control.py
+    depends_on: [mcp-contract]
+
 specifications:
   - name: Android Emulator MCP Server
     file: docs/faser/mcp-server.faser.md
@@ -120,4 +144,8 @@ specifications:
   - name: MCP Android Emulator ECA v1
     file: docs/eca/mcp-emulator-v1.md
     status: executable
-    purpose: "Oráculo independiente y campaña real del comportamiento MCP"
+    purpose: "Independent oracle and real MCP behavior campaign"
+  - name: Android UI Control
+    file: docs/faser/android-ui-control.faser.md
+    status: implemented
+    purpose: "Semantic control, evidence and emulator boundary"

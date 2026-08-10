@@ -22,6 +22,7 @@ from entradas.mcp.server import build_server
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUN_EMULATOR_ECA = os.getenv("ANDROID_MCP_RUN_EMULATOR") == "1"
+TARGET_APP_PACKAGE = os.getenv("ANDROID_MCP_ECA_TARGET_PACKAGE")
 
 
 def structured_payload(result: object) -> dict[str, object]:
@@ -86,10 +87,10 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             tree = structured_payload(await client.call_tool("ui.get_tree"))
 
         self.assertTrue(navigation["ok"])
-        self.assertIn("See all", navigation["data"]["screen_marker"])
+        self.assertIn("All apps", navigation["data"]["screen_marker"])
         self.assertTrue(tree["ok"])
         self.assertEqual(visible_package(tree["data"]["ui_tree"]), "com.android.settings")
-        self.assertIn("Apps", tree["data"]["ui_tree"])
+        self.assertIn("All apps", tree["data"]["ui_tree"])
 
         evidence = navigation["evidence"]
         self.assertIsNotNone(evidence)
@@ -137,8 +138,97 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
                 "ui.get_tree",
                 "screen.capture",
                 "settings.open_apps",
+                "app.list_installed",
+                "app.open",
+                "ui.tap",
+                "ui.type_text",
+                "ui.scroll",
+                "device.back",
             },
         )
         payload = structured_payload(result)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["tool"], "emulator.get_status")
+
+    async def test_semantic_navigation_controls_settings_without_coordinates(self) -> None:
+        """FLOW-UI-1: open, tap, scroll and back work through semantic MCP actions."""
+
+        async with Client(build_server()) as client:
+            packages = structured_payload(await client.call_tool("app.list_installed"))
+            settings_apps = structured_payload(
+                await client.call_tool("settings.open_apps")
+            )
+            tapped = structured_payload(
+                await client.call_tool("ui.tap", {"selector": {"text": "Calendar"}})
+            )
+            scrolled = structured_payload(
+                await client.call_tool("ui.scroll", {"direction": "down"})
+            )
+            backed = structured_payload(await client.call_tool("device.back"))
+
+        self.assertTrue(packages["ok"])
+        self.assertIn("com.android.settings", packages["data"]["packages"])
+        self.assertTrue(settings_apps["ok"])
+        self.assertTrue(tapped["ok"])
+        self.assertEqual(tapped["data"]["target"], {"text": "Calendar"})
+        self.assertTrue(scrolled["ok"])
+        self.assertEqual(scrolled["data"]["direction"], "down")
+        self.assertTrue(backed["ok"])
+        self.assertEqual(backed["data"]["foreground_package"], "com.android.settings")
+
+        for payload in (settings_apps, tapped, scrolled, backed):
+            self.assertTrue((PROJECT_ROOT / payload["evidence"]["path"]).is_file())
+
+    async def test_semantic_text_input_reaches_a_real_settings_search_field(self) -> None:
+        """FLOW-TEXT-1: semantic tap then text input works across MCP actions."""
+
+        async with Client(build_server()) as client:
+            await client.call_tool("settings.open_apps")
+            opened_search = structured_payload(
+                await client.call_tool(
+                    "ui.tap",
+                    {
+                        "selector": {
+                            "content_desc": "Search"
+                        }
+                    },
+                )
+            )
+            typed = structured_payload(
+                await client.call_tool(
+                    "ui.type_text",
+                    {
+                        "selector": {
+                            "input_hint": "Search"
+                        },
+                        "text": "Apps",
+                    },
+                )
+            )
+            tree = structured_payload(await client.call_tool("ui.get_tree"))
+
+        self.assertTrue(opened_search["ok"])
+        self.assertTrue(typed["ok"])
+        self.assertEqual(typed["data"]["characters_sent"], 4)
+        self.assertIn("Apps", tree["data"]["ui_tree"])
+        self.assertTrue((PROJECT_ROOT / typed["evidence"]["path"]).is_file())
+
+    @unittest.skipUnless(
+        TARGET_APP_PACKAGE,
+        "Set ANDROID_MCP_ECA_TARGET_PACKAGE to test a launchable target app.",
+    )
+    async def test_launchable_target_app_is_opened_and_observable(self) -> None:
+        """FLOW-APP-1: a declared app package opens and appears in the MCP UI tree."""
+
+        async with Client(build_server()) as client:
+            opened = structured_payload(
+                await client.call_tool(
+                    "app.open", {"package_name": TARGET_APP_PACKAGE}
+                )
+            )
+            tree = structured_payload(await client.call_tool("ui.get_tree"))
+
+        self.assertTrue(opened["ok"])
+        self.assertEqual(opened["data"]["foreground_package"], TARGET_APP_PACKAGE)
+        self.assertIn(f'package="{TARGET_APP_PACKAGE}"', tree["data"]["ui_tree"])
+        self.assertTrue((PROJECT_ROOT / opened["evidence"]["path"]).is_file())

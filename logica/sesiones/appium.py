@@ -23,21 +23,39 @@ from appium.webdriver.client_config import AppiumClientConfig
 from appium.options.android import UiAutomator2Options
 
 from contratos.demo_settings import SettingsDemoConfig
+from logica.infraestructura.lanzador import start_settings_apps
 
 
 def create_settings_driver(config: SettingsDemoConfig) -> Any:
     """Connect one Appium session and bring Android Settings to foreground."""
+
+    driver = create_device_driver(config)
+    start_settings_apps(config.udid)
+    return driver
+
+
+def create_device_driver(config: SettingsDemoConfig) -> Any:
+    """Connect one transient session without choosing or launching an Android app."""
+
+    return _connect(config, _base_options(config))
+
+
+def _base_options(config: SettingsDemoConfig) -> UiAutomator2Options:
+    """Build shared emulator-only Appium capabilities."""
 
     options = UiAutomator2Options()
     options.platform_name = "Android"
     options.automation_name = "UiAutomator2"
     options.device_name = "Android Emulator"
     options.udid = config.udid
-    options.app_package = "com.android.settings"
-    options.app_activity = ".Settings"
     options.no_reset = True
-    options.set_capability("appium:forceAppLaunch", True)
     options.new_command_timeout = 60
+    return options
+
+
+def _connect(config: SettingsDemoConfig, options: UiAutomator2Options) -> Any:
+    """Create the Appium client with the project-wide connection budget."""
+
     client_config = AppiumClientConfig(
         remote_server_addr=config.appium_url,
         timeout=10,

@@ -67,6 +67,42 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
 
         return await active_controller.open_settings_apps()
 
+    @server.tool(name="app.list_installed")
+    async def app_list_installed() -> dict[str, Any]:
+        """List package identifiers installed in the configured emulator only."""
+
+        return await active_controller.list_installed_apps()
+
+    @server.tool(name="app.open")
+    async def app_open(package_name: str) -> dict[str, Any]:
+        """Open one validated installed package in the disposable emulator."""
+
+        return await active_controller.open_app(package_name)
+
+    @server.tool(name="ui.tap")
+    async def ui_tap(selector: dict[str, str]) -> dict[str, Any]:
+        """Tap one UI target selected by text, resource id or accessibility label."""
+
+        return await active_controller.tap_ui(selector)
+
+    @server.tool(name="ui.type_text")
+    async def ui_type_text(selector: dict[str, str], text: str) -> dict[str, Any]:
+        """Type bounded text into one semantic Android UI target."""
+
+        return await active_controller.type_into_ui(selector, text)
+
+    @server.tool(name="ui.scroll")
+    async def ui_scroll(direction: str) -> dict[str, Any]:
+        """Scroll the current screen once using a trusted normalized gesture."""
+
+        return await active_controller.scroll_ui(direction)
+
+    @server.tool(name="device.back")
+    async def device_back() -> dict[str, Any]:
+        """Perform one Android Back navigation on the configured emulator."""
+
+        return await active_controller.go_back()
+
     return server
 
 

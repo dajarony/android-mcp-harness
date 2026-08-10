@@ -25,7 +25,7 @@ from contratos.mcp import HarnessError, McpErrorCode
 from logica.seguridad.emulador import assert_emulator_udid
 
 
-def _adb_path() -> str:
+def resolve_adb_path() -> str:
     """Resolve the local ADB executable without accepting caller-provided paths."""
 
     android_home = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
@@ -48,7 +48,7 @@ def _run_read_only_adb(udid: str, arguments: list[str], timeout_seconds: int) ->
     assert_emulator_udid(udid)
     try:
         completed = subprocess.run(
-            [_adb_path(), "-s", udid, *arguments],
+            [resolve_adb_path(), "-s", udid, *arguments],
             check=False,
             capture_output=True,
             timeout=timeout_seconds,
@@ -88,6 +88,22 @@ def read_emulator_properties(udid: str) -> dict[str, str]:
         udid, ["shell", "getprop", "ro.product.model"], 5
     ).decode("utf-8", errors="replace").strip()
     return {"udid": udid, "android_version": version, "model": model}
+
+
+def read_installed_packages(udid: str) -> list[str]:
+    """Return installed Android package identifiers through one fixed ADB query."""
+
+    output = _run_read_only_adb(udid, ["shell", "pm", "list", "packages"], 10)
+    packages = []
+    for line in output.decode("utf-8", errors="replace").splitlines():
+        if line.startswith("package:"):
+            packages.append(line.removeprefix("package:"))
+    if not packages:
+        raise HarnessError(
+            McpErrorCode.EMULATOR_UNAVAILABLE,
+            "Android did not return any installed packages.",
+        )
+    return sorted(packages)
 
 
 def read_ui_tree(udid: str) -> str:

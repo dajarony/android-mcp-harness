@@ -3,6 +3,7 @@
 import unittest
 
 from contratos.mcp import HarnessError, McpErrorCode, McpToolResult
+from contratos.ui_control import selector_mapping, validate_selector
 from contratos.demo_settings import SettingsDemoConfig
 from logica.servicios.mcp_server.controller import AndroidMcpController
 from logica.servicios.mcp_server.gate import EmulatorOperationGate
@@ -46,3 +47,27 @@ class McpContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"]["code"], "EMULATOR_UNAVAILABLE")
         self.assertEqual(result["data"], {})
+
+    async def test_invalid_ui_intentions_are_rejected_before_appium_session(self) -> None:
+        """INV-SAFE-2: malformed model input never reaches a UI driver."""
+
+        controller = AndroidMcpController(
+            SettingsDemoConfig(
+                appium_url="http://127.0.0.1:4723",
+                udid="emulator-5554",
+            )
+        )
+        invalid_selector = await controller.tap_ui({"text": "A", "resource_id": "B"})
+        invalid_package = await controller.open_app("not a package")
+        invalid_scroll = await controller.scroll_ui("sideways")
+
+        self.assertEqual(invalid_selector["error"]["code"], "INVALID_SELECTOR")
+        self.assertEqual(invalid_package["error"]["code"], "INVALID_PACKAGE")
+        self.assertEqual(invalid_scroll["error"]["code"], "INVALID_SCROLL_DIRECTION")
+
+    def test_input_hint_is_a_single_semantic_selector(self) -> None:
+        """Compose fields without resource ids stay controllable without XPath input."""
+
+        selector = validate_selector({"input_hint": "Search"})
+
+        self.assertEqual(selector_mapping(selector), {"input_hint": "Search"})

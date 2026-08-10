@@ -14,6 +14,9 @@
 | INV-CONC-1 | Dos operaciones simultáneas | No hay dos dueños del emulador. | Segunda llamada: `EMULATOR_BUSY`. |
 | SEQ-EVID-1 | Dos `screen.capture` consecutivas | Un reintento no sobrescribe evidencia previa. | Dos `artifact_id` diferentes y ambos PNG existentes. |
 | CONTRACT-STDIO-1 | Proceso MCP stdio | El cliente real descubre el catálogo y llama estado sin red. | `tools/list` exacto y respuesta estructurada. |
+| FLOW-UI-1 | `app.open` → `ui.tap` → `ui.scroll` → `device.back` | Las acciones semánticas recorren Settings sin coordenadas del modelo. | Paquete foreground, selector devuelto y una evidencia por acción. |
+| FLOW-TEXT-1 | `app.open` → `ui.tap` → `ui.type_text` | El texto llega a un campo Android real por selector semántico. | Conteo de caracteres, árbol posterior y PNG. |
+| FLOW-APP-1 | `app.open(package)` → `ui.get_tree` | Un paquete lanzable declarado se abre y queda observable. | Paquete foreground y PNG; requiere `ANDROID_MCP_ECA_TARGET_PACKAGE`. |
 
 ## Campaña v1
 
@@ -35,3 +38,11 @@
 - No valida todavía una aplicación Android propia ni interacción con Trinidad,
   Auralis o Glas. Esas integraciones serán clientes externos de esta misma
   frontera, no autoridad adicional.
+
+## Resultados v1.1 (Android 16)
+
+- `FLOW-NAV-1` llega al marcador observable `All apps` mediante la intención
+  fija `android.settings.APPLICATION_SETTINGS`.
+- `FLOW-UI-1` comprueba tocar, desplazar y volver sin coordenadas de entrada.
+- `FLOW-TEXT-1` usa `input_hint: "Search"` para escribir en el `EditText` real
+  que Android 16 no expone con `resource-id`.

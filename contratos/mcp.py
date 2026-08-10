@@ -33,16 +33,27 @@ class McpErrorCode(StrEnum):
     UI_TREE_UNAVAILABLE = "UI_TREE_UNAVAILABLE"
     OPERATION_TIMEOUT = "OPERATION_TIMEOUT"
     EVIDENCE_WRITE_FAILED = "EVIDENCE_WRITE_FAILED"
+    INVALID_PACKAGE = "INVALID_PACKAGE"
+    APP_NOT_FOUND = "APP_NOT_FOUND"
+    INVALID_SELECTOR = "INVALID_SELECTOR"
+    INVALID_TEXT = "INVALID_TEXT"
+    INVALID_SCROLL_DIRECTION = "INVALID_SCROLL_DIRECTION"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
 class HarnessError(Exception):
     """Expected operational failure that can be safely exposed to an MCP client."""
 
-    def __init__(self, code: McpErrorCode, message: str) -> None:
+    def __init__(
+        self,
+        code: McpErrorCode,
+        message: str,
+        evidence: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+        self.evidence = evidence
 
 
 @dataclass(frozen=True)
