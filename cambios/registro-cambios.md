@@ -25,7 +25,7 @@
 - Toda pieza futura debe tener una responsabilidad y actualizar el mapa y este
   registro.
 
-**Autor:** Codex, con autorización del propietario.
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
 
 ---
 
@@ -48,7 +48,7 @@
 - La regresión exige dos artefactos distintos y existentes antes de declarar
   verde la campaña.
 
-**Autor:** Codex, con autorización del propietario.
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
 
 ---
 
@@ -70,7 +70,7 @@
 - No se añade código de ejecución ni se abre ninguna capacidad nueva.
 - La futura implementación queda limitada a las cinco herramientas declaradas.
 
-**Autor:** Codex, con autorización del propietario.
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
 
 ---
 
@@ -97,7 +97,7 @@
 - La campaña ECA real verificó 3/3 invariantes: observación sin navegación,
   navegación con evidencia y protocolo stdio en proceso independiente.
 
-**Autor:** Codex, con autorización del propietario.
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
 
 ---
 
@@ -131,4 +131,42 @@
 - El alcance sigue limitado al AVD configurado; no controla host ni teléfonos
   físicos.
 
-**Autor:** Codex, con autorización del propietario.
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-13 — Guardias de sesión aplicados en todas las puertas
+
+**Archivos afectados:**
+
+- Actualizado `logica/sesiones/appium.py`.
+- Actualizado `logica/controladores/demo_settings.py`.
+- Creado `tests/test_session_guards.py`.
+
+**Motivo:**
+
+- Una campaña ECA demostró que `assert_emulator_udid` y `assert_local_appium_url`
+  solo se aplicaban en las herramientas de lectura. Con un `ANDROID_UDID` con
+  forma de teléfono físico, las cinco herramientas que abren sesión enviaban un
+  `POST /session` real a Appium: el arnés podía salir del emulador desechable.
+- El banco anterior no lo vio porque comprobaba el UDID físico contra una sola
+  herramienta, `emulator.get_status`.
+
+**Hallazgos ECA y correcciones:**
+
+- `create_device_driver` valida ahora UDID y punto final de Appium antes de
+  conectar; es el embudo por el que pasan `ui.tap`, `ui.type_text`, `ui.scroll`,
+  `device.back` y `settings.open_apps`.
+- `run_settings_demo` conserva el código tipado de un `HarnessError` en vez de
+  aplanarlo a `INTERNAL_ERROR`, para que el cliente sepa qué frontera se cerró.
+- La regresión levanta un Appium espía y exige cero peticiones: si alguna
+  herramienta futura evita el embudo, el test lo delata.
+
+**Impacto:**
+
+- Un UDID que no sea `emulator-<puerto>` recibe `EMULATOR_UNAVAILABLE` en las
+  diez herramientas; un Appium fuera de loopback recibe `APPIUM_UNAVAILABLE`.
+- Banco completo en verde: 20 pruebas unitarias y 6 secuencias reales contra el
+  AVD, sin cambios de comportamiento en el camino feliz.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.

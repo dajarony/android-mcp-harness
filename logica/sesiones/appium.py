@@ -24,6 +24,7 @@ from appium.options.android import UiAutomator2Options
 
 from contratos.demo_settings import SettingsDemoConfig
 from logica.infraestructura.lanzador import start_settings_apps
+from logica.seguridad.emulador import assert_emulator_udid, assert_local_appium_url
 
 
 def create_settings_driver(config: SettingsDemoConfig) -> Any:
@@ -37,6 +38,11 @@ def create_settings_driver(config: SettingsDemoConfig) -> Any:
 def create_device_driver(config: SettingsDemoConfig) -> Any:
     """Connect one transient session without choosing or launching an Android app."""
 
+    # Every session-opening tool funnels through here, so both boundaries are
+    # checked before a request can leave: a physical UDID or a remote Appium
+    # would otherwise reach the network and take the harness off the emulator.
+    assert_emulator_udid(config.udid)
+    assert_local_appium_url(config.appium_url)
     return _connect(config, _base_options(config))
 
 

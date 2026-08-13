@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 from contratos.demo_settings import SettingsDemoConfig, SettingsDemoResult
+from contratos.mcp import HarnessError
 from logica.evidencias.capturas import save_screenshot
 from logica.navegacion.ajustes import (
     SettingsForegroundError,
@@ -47,7 +48,11 @@ def run_settings_demo(config: SettingsDemoConfig) -> SettingsDemoResult:
             except Exception:
                 screenshot_path = None
         error_code = "INTERNAL_ERROR"
-        if isinstance(exc, SettingsForegroundError):
+        if isinstance(exc, HarnessError):
+            # A guard already classified this failure; keep its typed code instead
+            # of flattening a refused emulator or endpoint into INTERNAL_ERROR.
+            error_code = exc.code.value
+        elif isinstance(exc, SettingsForegroundError):
             error_code = "SETTINGS_FOREGROUND_FAILED"
         elif isinstance(exc, UiElementNotFoundError):
             error_code = "UI_ELEMENT_NOT_FOUND"
