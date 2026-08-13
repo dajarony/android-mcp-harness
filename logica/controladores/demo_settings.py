@@ -16,6 +16,7 @@ Salidas:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from contratos.demo_settings import SettingsDemoConfig, SettingsDemoResult
@@ -28,6 +29,16 @@ from logica.navegacion.ajustes import (
     navigate_to_apps,
 )
 from logica.sesiones.appium import close_driver, create_settings_driver
+
+
+LOGGER = logging.getLogger(__name__)
+
+# The cause stays in the local log; the client receives wording we authored.
+_PUBLIC_DETAIL = {
+    "SETTINGS_FOREGROUND_FAILED": "Android Settings was not the foreground application.",
+    "UI_ELEMENT_NOT_FOUND": "The Settings Apps marker was not found before timeout.",
+    "INTERNAL_ERROR": "The Settings navigation failed unexpectedly; inspect local evidence and logs.",
+}
 
 
 def run_settings_demo(config: SettingsDemoConfig) -> SettingsDemoResult:
@@ -48,20 +59,20 @@ def run_settings_demo(config: SettingsDemoConfig) -> SettingsDemoResult:
             except Exception:
                 screenshot_path = None
         error_code = "INTERNAL_ERROR"
+        detail = _PUBLIC_DETAIL["INTERNAL_ERROR"]
         if isinstance(exc, HarnessError):
-            # A guard already classified this failure; keep its typed code instead
-            # of flattening a refused emulator or endpoint into INTERNAL_ERROR.
+            # A guard already classified this failure and wrote a safe message;
+            # keep both instead of flattening them into INTERNAL_ERROR.
             error_code = exc.code.value
+            detail = exc.message
         elif isinstance(exc, SettingsForegroundError):
             error_code = "SETTINGS_FOREGROUND_FAILED"
+            detail = _PUBLIC_DETAIL[error_code]
         elif isinstance(exc, UiElementNotFoundError):
             error_code = "UI_ELEMENT_NOT_FOUND"
-        return SettingsDemoResult(
-            False,
-            f"{type(exc).__name__}: {exc}",
-            screenshot_path,
-            error_code,
-        )
+            detail = _PUBLIC_DETAIL[error_code]
+        LOGGER.exception("Settings navigation failed with %s", error_code)
+        return SettingsDemoResult(False, detail, screenshot_path, error_code)
     finally:
         if driver is not None:
             close_driver(driver)

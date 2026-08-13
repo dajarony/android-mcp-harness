@@ -23,7 +23,12 @@ from typing import Any
 from contratos.mcp import HarnessError, McpErrorCode
 
 
-_PACKAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
+# Android allows a single-segment package such as "android"; requiring a dot
+# rejected real packages that app.list_installed had just offered.
+_PACKAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*$")
+# Control characters are not text on Android: a newline in an EditText fires the
+# IME action, and a bidi override makes evidence read differently from what ran.
+_BIDI_OVERRIDES = frozenset("‪‫‬‭‮⁦⁧⁨⁩")
 _SELECTOR_KEYS = {
     "resource_id",
     "text",
@@ -39,6 +44,15 @@ class SemanticSelector:
 
     kind: str
     value: str
+
+
+def carries_control_characters(value: str) -> bool:
+    """Report text that would act on the device instead of being typed into it."""
+
+    return any(
+        character < " " or character == "\x7f" or character in _BIDI_OVERRIDES
+        for character in value
+    )
 
 
 def validate_package_name(package_name: object) -> str:
@@ -72,11 +86,11 @@ def validate_selector(raw_selector: object) -> SemanticSelector:
         not isinstance(value, str)
         or not value.strip()
         or len(value) > 256
-        or "\x00" in value
+        or carries_control_characters(value)
     ):
         raise HarnessError(
             McpErrorCode.INVALID_SELECTOR,
-            "selector value must be nonempty, at most 256 characters and contain no NUL.",
+            "selector value must be nonempty, at most 256 characters and free of control characters.",
         )
     return SemanticSelector(kind, value)
 
@@ -84,10 +98,16 @@ def validate_selector(raw_selector: object) -> SemanticSelector:
 def validate_text(text: object) -> str:
     """Bound text input before it reaches a UI field."""
 
-    if not isinstance(text, str) or not text or len(text) > 512 or "\x00" in text:
+    if (
+        not isinstance(text, str)
+        or not text
+        or len(text) > 512
+        or carries_control_characters(text)
+    ):
         raise HarnessError(
             McpErrorCode.INVALID_TEXT,
-            "text must contain 1 to 512 characters and no NUL.",
+            "text must contain 1 to 512 characters and no control characters; "
+            "a newline is an IME action, not text, and is not part of this tool.",
         )
     return text
 

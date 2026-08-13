@@ -23,6 +23,7 @@ from appium.webdriver.client_config import AppiumClientConfig
 from appium.options.android import UiAutomator2Options
 
 from contratos.demo_settings import SettingsDemoConfig
+from logica.infraestructura.appium import read_appium_status
 from logica.infraestructura.lanzador import start_settings_apps
 from logica.seguridad.emulador import assert_emulator_udid, assert_local_appium_url
 
@@ -43,6 +44,10 @@ def create_device_driver(config: SettingsDemoConfig) -> Any:
     # would otherwise reach the network and take the harness off the emulator.
     assert_emulator_udid(config.udid)
     assert_local_appium_url(config.appium_url)
+    # A stopped Appium is a declared, recoverable condition. Asking its status
+    # first costs one local request and keeps the client from receiving
+    # INTERNAL_ERROR when the FASER promises APPIUM_UNAVAILABLE.
+    read_appium_status(config.appium_url)
     return _connect(config, _base_options(config))
 
 

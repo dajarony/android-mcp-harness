@@ -22,8 +22,13 @@ class ContractBoundaryTests(unittest.TestCase):
         )
 
     def test_failure_result_never_claims_success(self) -> None:
-        result = SettingsDemoResult(False, "TimeoutException: no element")
+        """The rendered detail is wording we authored, never a raw exception."""
+
+        result = SettingsDemoResult(
+            False, "The Settings Apps marker was not found before timeout."
+        )
 
         self.assertEqual(
-            render_demo_result(result), "FAIL: TimeoutException: no element"
+            render_demo_result(result),
+            "FAIL: The Settings Apps marker was not found before timeout.",
         )

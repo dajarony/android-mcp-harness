@@ -191,18 +191,41 @@ class AndroidMcpController:
 
         package = validate_package_name(package_name)
         launched = await asyncio.to_thread(launch_package, self._config.udid, package)
-        tree = await asyncio.to_thread(read_ui_tree, self._config.udid)
-        if f'package="{launched}"' not in tree:
-            raise HarnessError(
-                McpErrorCode.APP_NOT_FOUND,
-                "Android launched the package but it did not become visible before timeout.",
-            )
+        await self._await_visible_package(launched)
         screenshot = await asyncio.to_thread(read_png_screenshot, self._config.udid)
         path = await asyncio.to_thread(save_png_artifact, screenshot, "app-open")
         return (
             {"opened_package": launched, "foreground_package": launched},
             self._artifact_reference(path),
         )
+
+    async def _await_visible_package(
+        self, package: str, deadline_seconds: float = 6.0
+    ) -> None:
+        """Give Android time to draw before declaring the app missing.
+
+        The previous check read the tree once and still reported a timeout, so a
+        launch that was merely mid-animation looked like a missing app.  A dump
+        taken during a transition can also fail outright; that is a reason to
+        retry, not to give up.
+        """
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + deadline_seconds
+        while True:
+            try:
+                tree = await asyncio.to_thread(read_ui_tree, self._config.udid)
+                if f'package="{package}"' in tree:
+                    return
+            except HarnessError:
+                pass
+            if loop.time() >= deadline:
+                raise HarnessError(
+                    McpErrorCode.APP_NOT_FOUND,
+                    "Android launched the package but it did not become visible "
+                    f"within {deadline_seconds:.0f} s.",
+                )
+            await asyncio.sleep(0.5)
 
     async def _tap_ui(
         self, raw_selector: object

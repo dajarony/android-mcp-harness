@@ -219,3 +219,45 @@
   AVD.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Cerrados los cinco hallazgos de comportamiento
+
+**Archivos afectados:**
+
+- Actualizados `contratos/ui_control.py`, `logica/controladores/demo_settings.py`,
+  `logica/sesiones/appium.py` y `logica/servicios/mcp_server/controller.py`.
+- Creado `tests/test_error_contracts.py`; corregido `tests/test_contracts.py`.
+
+**Motivo:**
+
+- Una campaña ECA contra el emulador real encontró cinco promesas rotas que el
+  banco anterior no podía ver, porque cada test comprobaba funcionamiento y no
+  comportamiento.
+
+**Correcciones:**
+
+- El mensaje público de una navegación fallida ya no repite la excepción: la
+  causa va al registro local y el cliente recibe texto redactado por el
+  proyecto. `tests/test_contracts.py` congelaba la fuga como salida correcta.
+- Las herramientas de acción devuelven `APPIUM_UNAVAILABLE` cuando Appium está
+  parado, en vez de `INTERNAL_ERROR`: el creador de sesión consulta el estado
+  antes de conectar y reutiliza el adaptador ya probado.
+- `validate_text` y `validate_selector` rechazan caracteres de control y
+  overrides bidireccionales. Un salto de línea en un `EditText` es la acción
+  IME, no texto, y no forma parte del contrato de `ui.type_text`.
+- `validate_package_name` admite un paquete de un solo segmento: `android` es
+  real, lo listaba `app.list_installed` y lo rechazaba el propio validador.
+- `app.open` espera hasta 6 s a que el paquete se haga visible y reintenta si el
+  volcado del árbol falla durante una transición. Antes leía una sola vez y aun
+  así informaba de un tiempo de espera que no existía.
+
+**Impacto:**
+
+- Campaña ECA relanzada entera: 56 casos correctos frente a 46, cero fallos
+  frente a tres.
+- Banco completo en verde: 30 pruebas unitarias y 7 secuencias reales contra el
+  AVD.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
