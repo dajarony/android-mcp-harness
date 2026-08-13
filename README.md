@@ -5,6 +5,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/dajarony/android-mcp-harness/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/dajarony/android-mcp-harness/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/dajarony/android-mcp-harness/actions/workflows/eca.yml"><img alt="ECA" src="https://github.com/dajarony/android-mcp-harness/actions/workflows/eca.yml/badge.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white">
   <img alt="MCP" src="https://img.shields.io/badge/MCP-stdio%20local-5A45FF">
   <img alt="Appium" src="https://img.shields.io/badge/Appium-3.6-662D91?logo=appium&logoColor=white">
@@ -216,6 +218,17 @@ cliente MCP externo ve el mismo catálogo a través de stdio real.
 El oráculo — la verdad escrita por una persona, contra la que se compara todo —
 vive en [`docs/eca/mcp-emulator-v1.md`](docs/eca/mcp-emulator-v1.md) y **no se
 edita para convertir un fallo en verde**.
+
+En CI hay dos flujos y la separación es deliberada:
+
+| Flujo | Cuándo | ¿Bloquea? |
+|---|---|---|
+| [`ci.yml`](.github/workflows/ci.yml) | Cada push y cada PR | Sí — banco unitario en Python 3.12 y 3.13, más el catálogo MCP por stdio real |
+| [`eca.yml`](.github/workflows/eca.yml) | Semanal y a demanda | No — arranca un AVD y Appium de verdad y sube la evidencia |
+
+Un emulador en CI es lento y a veces caprichoso. Una puerta que falla sin culpa
+del código enseña a la gente a ignorar el rojo, así que la campaña real informa
+en vez de bloquear, y sus capturas quedan como artefacto descargable.
 
 ---
 

@@ -4,6 +4,7 @@ Every case here was found by running an agent against the live harness, not by
 reading the code: the previous suite passed while each of these was broken.
 """
 
+import socket
 import unittest
 from unittest.mock import patch
 
@@ -15,7 +16,15 @@ from logica.controladores.demo_settings import run_settings_demo
 from logica.servicios.mcp_server.controller import AndroidMcpController
 
 
-DEAD_APPIUM = "http://127.0.0.1:4799"
+def _closed_loopback_port() -> int:
+    """Reserve then release a port so nothing answers on it during the test."""
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+DEAD_APPIUM = f"http://127.0.0.1:{_closed_loopback_port()}"
 LEAKY_MESSAGE = r"connection to http://10.0.0.5:4723/session from C:\Users\secret failed"
 
 

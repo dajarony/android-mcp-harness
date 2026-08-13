@@ -261,3 +261,37 @@
   AVD.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Integración continua en dos flujos
+
+**Archivos afectados:**
+
+- Creados `.github/workflows/ci.yml` y `.github/workflows/eca.yml`.
+- Actualizados `README.md` y `tests/test_error_contracts.py`.
+
+**Motivo:**
+
+- El proyecto se apoya en medir, no en suponer, y no tenía ninguna medida
+  automática al recibir un cambio.
+
+**Decisiones:**
+
+- Se separan dos flujos a propósito. `ci.yml` bloquea: banco unitario en Python
+  3.12 y 3.13 más una comprobación del catálogo MCP por stdio real en un
+  proceso aparte. `eca.yml` no bloquea: arranca un AVD y Appium de verdad,
+  semanalmente o a demanda, y sube las capturas como artefacto.
+- Un emulador en integración continua es lento y a veces caprichoso. Una puerta
+  que se pone roja sin culpa del código enseña a ignorar el rojo, así que la
+  campaña real informa en lugar de bloquear.
+- El puerto muerto de las pruebas deja de estar fijado a 4799: se reserva y
+  libera uno efímero, para que el resultado no dependa de qué escucha en la
+  máquina que ejecuta.
+
+**Impacto:**
+
+- Cada cambio queda medido antes de fusionarse.
+- La evidencia de la campaña real queda descargable durante 14 días.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.

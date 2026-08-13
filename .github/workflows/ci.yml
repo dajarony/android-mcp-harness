@@ -1,0 +1,66 @@
+name: CI
+
+# The fast gate: everything that can be proven without a device.
+# The real campaign against an AVD lives in eca.yml and is not a blocker.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  bank:
+    name: Unit bank (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install client dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Run the unit bank
+        run: python -m unittest discover -s tests -v
+
+      - name: Prove the MCP catalogue over real stdio
+        # A separate process, the same transport a client uses. No emulator
+        # needed: an unreachable one only changes the tool's answer, not the
+        # handshake.
+        run: |
+          python - <<'PY'
+          import asyncio, os, sys
+          from mcp import ClientSession, StdioServerParameters
+          from mcp.client.stdio import stdio_client
+
+          EXPECTED = {
+              "emulator.get_status", "ui.get_tree", "screen.capture",
+              "settings.open_apps", "app.list_installed", "app.open",
+              "ui.tap", "ui.type_text", "ui.scroll", "device.back",
+          }
+
+          async def main() -> None:
+              env = os.environ | {"PYTHONPATH": os.getcwd()}
+              params = StdioServerParameters(
+                  command=sys.executable, args=["-m", "entradas.mcp.server"],
+                  cwd=os.getcwd(), env=env,
+              )
+              async with stdio_client(params) as (read, write):
+                  async with ClientSession(read, write) as session:
+                      await session.initialize()
+                      catalogue = await session.list_tools()
+              published = {tool.name for tool in catalogue.tools}
+              assert published == EXPECTED, f"catalogue drifted: {published ^ EXPECTED}"
+              print(f"catalogue OK: {len(published)} declared tools")
+
+          asyncio.run(main())
+          PY
