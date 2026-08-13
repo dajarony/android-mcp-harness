@@ -1,8 +1,12 @@
 ===============================================================
 Componente: Android UI Control Module
 Tipo: Service / MCP Gateway extension
-Version: 0.2.0
+Version: 0.3.0
 ===============================================================
+
+> Extiende [`mcp-server.faser.md`](mcp-server.faser.md), que define la frontera
+> común: catálogo, contrato de salida, exclusividad y evidencia. Las seis
+> herramientas de aquí viven en ese mismo proceso y bajo ese mismo bloqueo.
 
 ## DEFINICIÓN
 
@@ -38,6 +42,7 @@ shell ni un UDID físico.
 {"text": "Allow"}
 {"content_desc": "Navigate up"}
 {"text_contains": "Settings"}
+{"input_hint": "Search"}
 ```
 
 ## EVENTOS
@@ -117,6 +122,9 @@ cerrar.
 - Una acción siempre se serializa mediante el gate.
 - Cada acción obtiene evidencia propia y cierra driver aunque falle.
 - Ninguna herramienta recibe ni ejecuta ADB shell arbitrario.
+- El UDID y el punto final de Appium se validan en el creador de sesión, embudo
+  común de las seis acciones: un teléfono físico o un Appium remoto se rechazan
+  antes de que salga la petición, no después.
 
 ## ERRORES Y FALLBACK
 
@@ -140,8 +148,16 @@ cerrar.
 - Dos acciones consecutivas conservan dos capturas distintas.
 - Un paquete inexistente devuelve `APP_NOT_FOUND`, no `ok=true`.
 - Tras cada éxito o error, una operación posterior puede adquirir el gate.
+- Con un UDID de teléfono físico, las seis acciones responden
+  `EMULATOR_UNAVAILABLE` y un Appium espía recibe cero peticiones.
 
 ## DECISIONES
+
+- Se elige MCP stdio y el AVD desechable como frontera de control.
+- Se elige acción semántica, no coordenadas proporcionadas por el modelo.
+- Se elige validar la configuración en el creador de sesión y no en cada
+  herramienta: un embudo único no se olvida cuando se añade la herramienta once.
+- Se pospone cámara, permisos y teléfono físico hasta tener un contrato propio.
 
 ## ACLARACIÓN IMPLEMENTADA (Android 16)
 
@@ -153,7 +169,3 @@ cerrar.
   `All apps`.
 - `ui.tap` obtiene la etiqueta antes de tocar: si la pantalla cambia, una acción
   realmente aplicada no se convierte en un falso error por un elemento stale.
-
-- Se elige MCP stdio y el AVD desechable como frontera de control.
-- Se elige acción semántica, no coordenadas proporcionadas por el modelo.
-- Se pospone cámara, permisos y teléfono físico hasta tener un contrato propio.

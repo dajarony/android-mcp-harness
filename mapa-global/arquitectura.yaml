@@ -6,8 +6,8 @@
 # Salidas: mapa vivo para revisión humana o de agentes.
 
 system: android-mcp-harness
-version: 0.2.0
-last_updated: 2026-08-10
+version: 0.3.0
+last_updated: 2026-08-14
 sume_version: "1.0"
 
 routes:
@@ -85,7 +85,7 @@ modules:
   - name: appium-session
     type: Lógica
     file: logica/sesiones/appium.py
-    depends_on: [demo-contract]
+    depends_on: [demo-contract, emulator-security-boundary]
   - name: settings-navigation
     type: Lógica
     file: logica/navegacion/ajustes.py

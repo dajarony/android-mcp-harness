@@ -1,9 +1,18 @@
 ===============================================================
 Componente: Android Emulator MCP Server
 Tipo: Service / MCP Gateway
-Version: 0.1.0
+Version: 0.3.0
 Estado: Implementado y verificado en emulador local
 ===============================================================
+
+> **Alcance de este documento.** Aquí vive la frontera del servidor: catálogo,
+> contrato común de salida, exclusividad, evidencia y las cuatro herramientas de
+> observación más la navegación declarada `settings.open_apps`. Las seis
+> herramientas de control semántico (`app.list_installed`, `app.open`, `ui.tap`,
+> `ui.type_text`, `ui.scroll`, `device.back`) tienen su contrato propio en
+> [`android-ui-control.faser.md`](android-ui-control.faser.md). El catálogo
+> completo son **diez** herramientas y ninguna gana capacidades por estar
+> descrita en un fichero u otro.
 
 ## DEFINICIÓN
 
@@ -35,9 +44,20 @@ hay estado persistente de Appium ni sesiones compartidas entre llamadas.
 - `emulator.get_status`: lectura de ADB y salud de Appium.
 - `ui.get_tree`: lectura del árbol de accesibilidad/UI.
 - `screen.capture`: captura local de la pantalla actual.
+- `app.list_installed`: lectura de paquetes instalados.
 - `settings.open_apps`: navegación declarada de Ajustes a Apps.
+
+Definidas en [`android-ui-control.faser.md`](android-ui-control.faser.md) y
+servidas por este mismo proceso, contrato y bloqueo:
+
+- `app.open(package_name)`, `ui.tap(selector)`,
+  `ui.type_text(selector, text)`, `ui.scroll(direction)`, `device.back`.
+
+Configuración:
+
 - `ANDROID_UDID` y `APPIUM_URL`: variables locales opcionales; sus valores por
-  defecto son `emulator-5554` y `http://127.0.0.1:4723`.
+  defecto son `emulator-5554` y `http://127.0.0.1:4723`. Ambas se validan antes
+  de cualquier adaptador y antes de abrir sesión.
 
 ## CONTRATO COMÚN DE SALIDA
 
@@ -62,8 +82,8 @@ stacktrace ni una ruta fuera de `artifacts/`.
 
 **Condición:** servidor MCP iniciado.
 
-**Acción:** publicar exactamente las cinco herramientas declaradas en este
-FASER.
+**Acción:** publicar exactamente las diez herramientas declaradas entre este
+FASER y el de control de UI. Ninguna otra.
 
 **Resultado:** catálogo estable con sus esquemas.
 
@@ -87,7 +107,8 @@ interno ni arranque de procesos.
 
 ### Evento: `ui.get_tree`
 
-**Condición:** emulador y Appium disponibles; no hay navegación activa.
+**Condición:** emulador disponible; no hay navegación activa. No requiere
+Appium: va por ADB de solo lectura.
 
 **Acción:** ejecutar la consulta ADB fija y de solo lectura `uiautomator dump`;
 extraer el XML y no abrir sesión Appium.
@@ -98,7 +119,8 @@ extraer el XML y no abrir sesión Appium.
 
 ### Evento: `screen.capture`
 
-**Condición:** emulador y Appium disponibles; no hay navegación activa.
+**Condición:** emulador disponible; no hay navegación activa. No requiere
+Appium: va por ADB de solo lectura.
 
 **Acción:** ejecutar la consulta ADB fija y de solo lectura `screencap -p`,
 guardar una captura bajo `artifacts/` y no abrir sesión Appium.
@@ -114,12 +136,14 @@ guardar una captura bajo `artifacts/` y no abrir sesión Appium.
 **Acción:**
 
 1. Marcar `activeOperation=true`.
-2. Abrir Settings mediante el gestor de sesión.
-3. Comprobar que el paquete visible es `com.android.settings`.
-4. Localizar `Apps` con selector semántico, pulsarlo y esperar el marcador hijo
-   `See all … apps`.
-5. Guardar captura de éxito o fallo.
-6. Cerrar sesión y liberar `activeOperation` en todos los desenlaces.
+2. Validar UDID y punto final de Appium antes de conectar.
+3. Abrir sesión y lanzar la intención Android fija
+   `android.settings.APPLICATION_SETTINGS`. No se pulsa ningún elemento para
+   llegar: la pantalla se pide por intención, no por navegación a ciegas.
+4. Comprobar que el paquete visible es `com.android.settings`.
+5. Esperar ≤8 s el marcador observable `All apps` y devolver su texto.
+6. Guardar captura de éxito o fallo.
+7. Cerrar sesión y liberar `activeOperation` en todos los desenlaces.
 
 **Resultado:** pantalla Apps visible con evidencia asociada.
 
@@ -128,7 +152,11 @@ guardar una captura bajo `artifacts/` y no abrir sesión Appium.
 
 ## VALIDACIONES
 
-- El UDID identifica un emulador, nunca un teléfono físico.
+- El UDID identifica un emulador, nunca un teléfono físico. La comprobación vive
+  en el adaptador ADB **y** en el creador de sesión Appium: toda herramienta
+  entra por uno de los dos, así que no hay puerta sin guardia.
+- `APPIUM_URL` apunta a un `http` en loopback. Se valida en el mismo sitio, no
+  solo en la consulta de estado.
 - Cada llamada tiene un `operationId` nuevo.
 - Observación no puede invocar tap, input ni ADB mutante.
 - Navegación usa selectores semánticos; coordenadas no forman parte del contrato.
@@ -176,7 +204,10 @@ guardar una captura bajo `artifacts/` y no abrir sesión Appium.
   evidencia y libera la sesión.
 - Con Appium apagado, cualquier herramienta devuelve `APPIUM_UNAVAILABLE` sin
   bloquear ni lanzar procesos.
-- Con UDID de teléfono o inexistente, el servidor rechaza antes de Appium.
+- Con UDID de teléfono o inexistente, el servidor rechaza antes de Appium: no
+  sale ni una petición hacia el punto final, comprobado con un Appium espía.
+- Con `APPIUM_URL` fuera de loopback, toda herramienta devuelve
+  `APPIUM_UNAVAILABLE` sin llegar a la pila de red.
 - Dos navegaciones concurrentes producen una sola sesión; la segunda recibe
   `EMULATOR_BUSY`.
 - Un selector inexistente produce `UI_ELEMENT_NOT_FOUND`, evidencia y cero taps

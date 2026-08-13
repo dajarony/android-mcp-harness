@@ -170,3 +170,52 @@
   AVD, sin cambios de comportamiento en el camino feliz.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Contrato al día con las diez herramientas
+
+**Archivos afectados:**
+
+- Actualizados `docs/faser/mcp-server.faser.md` y
+  `docs/faser/android-ui-control.faser.md`.
+- Actualizado `docs/modules/android-mcp-server.md`.
+- Actualizados `mapa-global/arquitectura.yaml`, `package.json` y
+  `entradas/mcp/server.py`.
+- Limpiado `scripts/demo_settings.py`.
+
+**Motivo:**
+
+- El FASER del servidor seguía declarando cinco herramientas y describiendo
+  cuatro, sin mencionar que las seis acciones semánticas tienen su contrato en
+  un segundo documento. Quien llegaba al repositorio leía un producto distinto
+  del que arranca.
+- El proyecto declaraba tres versiones a la vez: `1.0.0` en `package.json`,
+  `0.1.0` en el servidor y `0.2.0` en el mapa global.
+
+**Correcciones:**
+
+- El FASER del servidor declara ahora las diez herramientas y remite
+  explícitamente al FASER de control de UI para las seis semánticas.
+- Corregido el paso 4 de `settings.open_apps`: el flujo real lanza la intención
+  fija `android.settings.APPLICATION_SETTINGS` y espera el marcador `All apps`;
+  no pulsa ningún elemento para llegar.
+- `ui.get_tree` y `screen.capture` dejan de exigir Appium en su condición: van
+  por ADB de solo lectura.
+- Documentados los guardias de UDID y de punto final como validación del
+  contrato, con su prueba de Appium espía.
+- Añadido `input_hint` al bloque de selectores del FASER de control, donde solo
+  aparecía en la aclaración final.
+- Versión única `0.3.0` en manifiesto, servidor y mapa.
+- Eliminado el bloque `__main__` duplicado del script de compatibilidad.
+- `appium-session` declara su dependencia real de la frontera de seguridad.
+
+**Impacto:**
+
+- Documentación y código describen el mismo sistema.
+- El oráculo ECA no se ha tocado: extenderlo con los identificadores de las
+  herramientas nuevas es decisión humana, no de quien es medido por él.
+- Banco completo en verde: 20 pruebas unitarias y 6 secuencias reales contra el
+  AVD.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.

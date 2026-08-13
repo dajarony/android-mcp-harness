@@ -1,7 +1,7 @@
 {
   "name": "android-mcp-harness",
-  "version": "1.0.0",
-  "description": "Local Android emulator harness for MCP-ready UI automation.",
+  "version": "0.3.0",
+  "description": "Local stdio MCP server that observes and controls a disposable Android emulator through Appium, UiAutomator2 and ADB.",
   "scripts": {
     "appium": "appium",
     "doctor": "appium driver doctor uiautomator2"
@@ -10,7 +10,16 @@
     "type": "git",
     "url": "git+https://github.com/dajarony/android-mcp-harness.git"
   },
-  "keywords": [],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "android",
+    "appium",
+    "uiautomator2",
+    "adb",
+    "emulator",
+    "agent-tools"
+  ],
   "author": "Dajarony Ysaac Guzman Marmolejos",
   "license": "ISC",
   "bugs": {
