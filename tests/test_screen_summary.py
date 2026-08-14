@@ -201,3 +201,36 @@ class InputHintLocatorTests(unittest.TestCase):
 
         _, query = _locator(validate_selector({"input_hint": "']|//*|//*['"}))
         self.assertIn('"\']|//*|//*[\'"', query)
+
+
+class NotFoundIsActionableTests(unittest.TestCase):
+    """A dead end that names the alternatives is a retry, not a dead end."""
+
+    class _Driver:
+        def __init__(self, source: str) -> None:
+            self.page_source = source
+
+    def test_the_message_names_what_the_screen_does_offer(self) -> None:
+        from logica.navegacion.semantica import _offered_instead
+
+        offered = _offered_instead(self._Driver(SCREEN))
+
+        self.assertIn("'Calendar'", offered)
+        self.assertIn("'Search'", offered)
+
+    def test_a_broken_page_source_never_masks_the_real_error(self) -> None:
+        from logica.navegacion.semantica import _offered_instead
+
+        self.assertEqual(_offered_instead(self._Driver("<not xml")), "")
+
+    def test_the_list_stays_bounded(self) -> None:
+        from logica.navegacion.semantica import _offered_instead
+
+        rows = "".join(
+            f'<node class="android.widget.Button" clickable="true" text="Item {i}" '
+            f'bounds="[0,{i * 10}][100,{i * 10 + 9}]"/>'
+            for i in range(40)
+        )
+        crowded = f'<hierarchy><node package="x" bounds="[0,0][100,999]">{rows}</node></hierarchy>'
+
+        self.assertIn("and 30 more", _offered_instead(self._Driver(crowded)))

@@ -24,6 +24,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from contratos.mcp import HarnessError, McpErrorCode
 from contratos.ui_control import SemanticSelector
+from logica.navegacion.resumen import summarize_ui_tree
 
 
 def _xpath_literal(value: str) -> str:
@@ -67,6 +68,26 @@ def _locator(selector: SemanticSelector) -> tuple[str, str]:
     return AppiumBy.XPATH, f"//*[contains(@text, {literal})]"
 
 
+def _offered_instead(driver: Any) -> str:
+    """Name what the screen does offer, so 'not found' is actionable.
+
+    A caller told only that nothing matched has to guess blindly at its next
+    move. Telling it what is actually reachable turns a dead end into a retry,
+    and it is the difference between debugging a run and staring at it.
+    """
+
+    try:
+        summary = summarize_ui_tree(driver.page_source)
+    except Exception:  # noqa: BLE001 - a diagnostic must never mask the real error
+        return ""
+    labels = [action["label"] for action in summary["actions"] if action["label"]]
+    if not labels:
+        return ""
+    shown = ", ".join(repr(label[:40]) for label in labels[:10])
+    more = f" and {len(labels) - 10} more" if len(labels) > 10 else ""
+    return f" The screen offers: {shown}{more}."
+
+
 def find_element(driver: Any, selector: SemanticSelector) -> Any:
     """Wait for exactly the declared semantic target, never a coordinate fallback."""
 
@@ -78,7 +99,8 @@ def find_element(driver: Any, selector: SemanticSelector) -> Any:
     except TimeoutException as exc:
         raise HarnessError(
             McpErrorCode.UI_ELEMENT_NOT_FOUND,
-            f"No visible element matched {selector.kind!r} before timeout.",
+            f"No visible element matched {selector.kind!r} before timeout."
+            + _offered_instead(driver),
         ) from exc
 
 
