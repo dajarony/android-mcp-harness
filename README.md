@@ -230,6 +230,49 @@ y bitácora en [`cambios/registro-cambios.md`](cambios/registro-cambios.md).
 
 ---
 
+## ¿Me falta algo?
+
+```powershell
+.\.venv\Scripts\python -m entradas.comandos.doctor
+```
+
+Comprueba las ocho piezas de una vez y, por cada una que falte, dice qué hacer.
+No se para en la primera: ir descubriendo obstáculos de uno en uno convierte la
+instalación en un juego de adivinanzas.
+
+```text
+[ok  ] Python              3.13.5
+[MISS] Java                java version "1.8.0_491" is Java 8, older than 17
+[ok  ] ADB                 .../platform-tools/adb.exe
+[MISS] Emulator            The configured Android emulator is unavailable in ADB.
+
+2 of 8 checks block a real campaign:
+  Java: Install JDK 17 and put its bin directory first on PATH, or set JAVA_HOME.
+  Emulator: Start a disposable AVD so that 'emulator-5554' comes online.
+```
+
+Ese `java` de la primera ejecución era real: comprobar que un programa *existe*
+es como se pasa una revisión y se falla una hora después.
+
+## Probarlo sin instalar nada
+
+```bash
+docker build -t android-mcp-harness .
+docker run --rm android-mcp-harness
+```
+
+81 pruebas en unos ocho segundos, sin Python, sin Node y sin SDK en tu máquina.
+
+**El emulador no está dentro, a propósito.** Necesitaría `/dev/kvm`, que Docker
+Desktop en Windows y macOS no cede de forma fiable, y el driver UiAutomator2
+reenvía puertos del dispositivo a través del servidor ADB: esos reenvíos
+aparecerían en el anfitrión y serían inalcanzables desde dentro. Prometer lo
+contrario sería una promesa que nadie ha probado.
+
+Lo que la imagen sí demuestra: los contratos se cumplen, el banco pasa y el
+servidor MCP arranca por stdio real publicando exactamente su catálogo. La
+campaña contra un AVD sigue siendo nativa, y `doctor` dice qué falta para ella.
+
 ## Puesta en marcha
 
 **Necesitas:** Python 3.13, JDK 17, Android SDK con un AVD, y Node para Appium.

@@ -32,9 +32,13 @@ def resolve_adb_path() -> str:
 
     android_home = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
     if android_home:
-        executable = Path(android_home) / "platform-tools" / "adb.exe"
-        if executable.is_file():
-            return str(executable)
+        platform_tools = Path(android_home) / "platform-tools"
+        # The binary was hard-coded as adb.exe, so on Linux and macOS the SDK
+        # path silently never matched and only the PATH lookup below ever worked.
+        for name in ("adb.exe", "adb"):
+            executable = platform_tools / name
+            if executable.is_file():
+                return str(executable)
     executable = shutil.which("adb")
     if executable:
         return executable

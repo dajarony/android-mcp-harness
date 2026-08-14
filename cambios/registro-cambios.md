@@ -521,3 +521,49 @@
   reales por nivel.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Un diagnóstico de entorno y una imagen que se prueba sola
+
+**Archivos afectados:**
+
+- Creados `contratos/diagnostico.py`, `logica/diagnostico/entorno.py`,
+  `salidas/consola/doctor.py`, `entradas/comandos/doctor.py` y
+  `tests/test_doctor.py`.
+- Creados `Dockerfile` y `.dockerignore`.
+- Actualizados `logica/infraestructura/adb.py`, `mapa-global/arquitectura.yaml`
+  y `README.md`.
+
+**Motivo:**
+
+- La fricción real de instalación no son las dependencias de Python: son el JDK,
+  el SDK y el emulador. Un error de cada vez convierte la puesta en marcha en un
+  juego de adivinanzas.
+
+**Hallazgos y correcciones:**
+
+- `resolve_adb_path` buscaba `adb.exe` a fuego dentro del SDK. Fuera de Windows
+  esa rama no coincidía nunca y el arnés funcionaba por accidente, gracias al
+  respaldo del PATH. Ahora prueba ambos nombres.
+- `doctor` comprobaba que `java` existiera. En su primera ejecución encontró un
+  Java 8 en el PATH de la máquina de desarrollo, con el que UiAutomator2 no
+  arranca. Comprobar que un programa existe es como se pasa una revisión y se
+  falla una hora después: ahora se lee la versión mayor, en los dos esquemas de
+  numeración de Java.
+
+**Decisiones:**
+
+- El emulador no entra en la imagen. Necesita `/dev/kvm`, que Docker Desktop en
+  Windows y macOS no cede de forma fiable, y UiAutomator2 reenvía puertos del
+  dispositivo por el servidor ADB: esos reenvíos quedarían en el anfitrión,
+  inalcanzables desde dentro. Documentado en el propio Dockerfile.
+- Lo que la imagen sí demuestra se ha ejecutado antes de escribirlo: 81 pruebas
+  en verde dentro del contenedor y el catálogo MCP completo por stdio real.
+
+**Impacto:**
+
+- Cualquiera puede verificar el arnés con dos órdenes y sin instalar nada.
+- Quien vaya a la campaña real sabe exactamente qué le falta y cómo arreglarlo.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.

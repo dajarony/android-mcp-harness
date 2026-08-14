@@ -6,7 +6,7 @@
 # Salidas: mapa vivo para revisión humana o de agentes.
 
 system: android-mcp-harness
-version: 0.6.0
+version: 0.7.0
 last_updated: 2026-08-14
 sume_version: "1.0"
 
@@ -97,6 +97,22 @@ modules:
   - name: screenshot-evidence
     type: Lógica
     file: logica/evidencias/capturas.py
+    depends_on: []
+  - name: doctor-entry
+    type: Entrada
+    file: entradas/comandos/doctor.py
+    depends_on: [environment-diagnosis, doctor-output]
+  - name: environment-diagnosis
+    type: Logic
+    file: logica/diagnostico/entorno.py
+    depends_on: [diagnosis-contract, adb-read-adapter, appium-status-adapter, emulator-security-boundary]
+  - name: doctor-output
+    type: Salida
+    file: salidas/consola/doctor.py
+    depends_on: [diagnosis-contract]
+  - name: diagnosis-contract
+    type: Contract
+    file: contratos/diagnostico.py
     depends_on: []
   - name: console-output
     type: Salida
