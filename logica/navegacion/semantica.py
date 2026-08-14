@@ -49,9 +49,20 @@ def _locator(selector: SemanticSelector) -> tuple[str, str]:
     if selector.kind == "text":
         return AppiumBy.XPATH, f"//*[@text={literal}]"
     if selector.kind == "input_hint":
+        # A field can carry its hint in four different places depending on the
+        # Android release and toolkit: Compose puts it on a child's content-desc,
+        # while a classic EditText holds it as its own hint, description or the
+        # placeholder text it draws. Matching only the first shape tied this
+        # selector to one Android version, which is exactly what it was invented
+        # to avoid. A missing attribute simply does not match, so asking for all
+        # four costs nothing.
         return (
             AppiumBy.XPATH,
-            f"//android.widget.EditText[.//*[contains(@content-desc, {literal})]]",
+            "//android.widget.EditText["
+            f"contains(@hint, {literal})"
+            f" or contains(@content-desc, {literal})"
+            f" or contains(@text, {literal})"
+            f" or .//*[contains(@content-desc, {literal})]]",
         )
     return AppiumBy.XPATH, f"//*[contains(@text, {literal})]"
 

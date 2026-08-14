@@ -438,3 +438,41 @@
 - Un cliente puede distinguir "tarda demasiado" de "algo desconocido ha fallado".
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — La pista de un campo no vive en el mismo sitio en cada Android
+
+**Archivos afectados:**
+
+- Actualizado `logica/navegacion/semantica.py`.
+- Actualizados `tests/test_screen_summary.py` y el FASER de control de UI.
+
+**Motivo:**
+
+- La campaña corrió por primera vez sobre dos niveles de API. En API 36 pasó
+  entera; en API 34 falló `FLOW-TEXT-1`, escribir en el buscador de Ajustes.
+- La causa se leyó en la evidencia, no en el código: la captura de fallo que el
+  arnés guarda automáticamente mostraba el buscador ya abierto, con el teclado
+  arriba y el marcador `Search...` dibujado. El toque había funcionado; lo que no
+  encontraba nada era el selector.
+
+**Correcciones:**
+
+- `input_hint` construía un XPath que exigía un descendiente con `content-desc`,
+  la forma que usa Compose en Android 16. Un `EditText` clásico lleva la pista en
+  sí mismo y no tiene hijos, así que en Android 14 no coincidía con nada.
+- Ahora busca en los cuatro sitios donde Android guarda esa pista: `hint`,
+  `content-desc` y `text` propios, y `content-desc` de un descendiente. Un
+  atributo ausente simplemente no coincide, así que preguntar por los cuatro no
+  cuesta nada.
+- Documentado el límite: una vez escrito el campo, su `text` deja de ser la
+  pista. El selector sirve para encontrar el campo, no para volver a él lleno.
+
+**Impacto:**
+
+- El selector deja de estar atado a una versión de Android, que es justo lo que
+  vino a evitar.
+- Sin regresión en API 36: campaña local completa en verde.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.

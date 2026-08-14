@@ -1,7 +1,7 @@
 ===============================================================
 Componente: Android UI Control Module
 Tipo: Service / MCP Gateway extension
-Version: 0.3.0
+Version: 0.4.0
 ===============================================================
 
 > Extiende [`mcp-server.faser.md`](mcp-server.faser.md), que define la frontera
@@ -162,8 +162,13 @@ cerrar.
 ## ACLARACIÓN IMPLEMENTADA (Android 16)
 
 - `selector` permite exactamente una de `resource_id`, `text`, `content_desc`,
-  `text_contains` o `input_hint`; este último localiza un campo `EditText` por
-  la etiqueta de accesibilidad que contiene, sin XPath proporcionado por MCP.
+  `text_contains` o `input_hint`; este último localiza un campo `EditText` sin
+  XPath proporcionado por MCP. Busca la pista en los cuatro sitios donde Android
+  la guarda según versión y kit de interfaz: `hint`, `content-desc` y `text`
+  propios, y `content-desc` de un descendiente, que es la forma de Compose.
+  Limitarse a la última ataba el selector a una versión de Android, que es justo
+  lo que vino a evitar. Una vez escrito, el `text` deja de ser la pista: este
+  selector sirve para encontrar el campo, no para volver a él con contenido.
 - `settings.open_apps` usa la intención Android fija
   `android.settings.APPLICATION_SETTINGS` y confirma el marcador observable
   `All apps`.

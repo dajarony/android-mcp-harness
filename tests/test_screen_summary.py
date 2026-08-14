@@ -172,3 +172,32 @@ class LayoutAuditTests(unittest.TestCase):
             [f for f in blind["layout_findings"] if f["issue"] == "touch_target_too_small"],
             [],
         )
+
+
+class InputHintLocatorTests(unittest.TestCase):
+    """A field's hint lives in a different place on each Android release.
+
+    Found by looking at the failure evidence from a CI run on API 34: the search
+    bar was open and drawing "Search...", but the locator only accepted a Compose
+    style child carrying content-desc, so it matched nothing.
+    """
+
+    def setUp(self) -> None:
+        from logica.navegacion.semantica import _locator
+
+        self.by, self.query = _locator(validate_selector({"input_hint": "Search"}))
+
+    def test_it_looks_where_every_android_toolkit_puts_the_hint(self) -> None:
+        for attribute in ("@hint", "@content-desc", "@text"):
+            with self.subTest(attribute=attribute):
+                self.assertIn(f"contains({attribute}, 'Search')", self.query)
+        self.assertIn(".//*[contains(@content-desc, 'Search')]", self.query)
+
+    def test_it_still_only_ever_matches_a_text_field(self) -> None:
+        self.assertTrue(self.query.startswith("//android.widget.EditText["))
+
+    def test_a_hostile_hint_stays_a_quoted_literal(self) -> None:
+        from logica.navegacion.semantica import _locator
+
+        _, query = _locator(validate_selector({"input_hint": "']|//*|//*['"}))
+        self.assertIn('"\']|//*|//*[\'"', query)
