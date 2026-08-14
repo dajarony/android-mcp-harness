@@ -61,7 +61,7 @@ violaría la promesa de que observar no navega.
 | `ui.session.close` | `session_id` | Cierra esa cadena y libera el emulador |
 | `ui.tap` | `selector`, `session_id?` | Pulsa **un** elemento localizado por semántica |
 | `ui.type_text` | `selector`, `text`, `session_id?` | Escribe texto acotado en un campo |
-| `ui.scroll` | `direction` (`up` \| `down` \| `left` \| `right`), `session_id?` | Un gesto cardinal normalizado |
+| `ui.scroll` | `direction` (`up` \| `down`), `session_id?` | Un gesto vertical normalizado |
 | `device.back` | `session_id?` | Una navegación Atrás |
 | `settings.open_apps` | — | El flujo de demostración: Ajustes → Apps |
 
