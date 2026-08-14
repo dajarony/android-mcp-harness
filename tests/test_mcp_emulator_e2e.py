@@ -34,8 +34,19 @@ CHECK_SESSIONS = os.getenv("ANDROID_MCP_CHECK_SESSIONS") == "1"
 def open_appium_sessions() -> int:
     """Count sessions Appium still owns, or fail loudly if it will not say."""
 
-    with urllib.request.urlopen("http://127.0.0.1:4723/appium/sessions", timeout=5) as answer:
-        payload = json.load(answer)
+    try:
+        with urllib.request.urlopen(
+            "http://127.0.0.1:4723/appium/sessions", timeout=5
+        ) as answer:
+            payload = json.load(answer)
+    except urllib.error.HTTPError as refused:
+        # Answering with a bare HTTP 500 leaves the reader guessing at exactly
+        # the moment the check is meant to be explicit about what it needs.
+        raise AssertionError(
+            "Appium will not list its sessions. Start it with "
+            "--allow-insecure='*:session_discovery', or unset "
+            "ANDROID_MCP_CHECK_SESSIONS to skip this check instead of failing it."
+        ) from refused
     sessions = payload.get("value")
     if not isinstance(sessions, list):
         raise AssertionError(f"Appium refused to list sessions: {payload}")
