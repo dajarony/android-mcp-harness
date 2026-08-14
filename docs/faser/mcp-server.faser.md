@@ -1,7 +1,7 @@
 ===============================================================
 Componente: Android Emulator MCP Server
 Tipo: Service / MCP Gateway
-Version: 0.6.0
+Version: 0.8.0
 Estado: Implementado y verificado en emulador local
 ===============================================================
 
@@ -119,7 +119,13 @@ No abre sesión Appium.
 selector que **este mismo servidor acepta** en `ui.tap` y `ui.type_text`, su
 `role` (`button`, `input`, `toggle`, `long-press`), si está `enabled`, su
 `bounds` para auditoría y, cuando ese selector encaja con más de un elemento,
-`ambiguous: true`. Acompañan `screen` y `layout_findings`.
+`ambiguous: true`. Acompañan `screen`, `layout_findings` y `keyboard`.
+
+El teclado no aparece en el volcado de `uiautomator`: el volcado describe la
+ventana de la aplicación como si nada estuviera encima. Por eso se lee su marco
+aparte, de los insets de ventana de Android, y todo objetivo que caiga bajo él
+se marca `covered_by_keyboard`. No se oculta: ocultarlo sería mentir por
+omisión, y `device.back` cierra el teclado, así que quien llama puede actuar.
 
 El volcado completo no se entrega por defecto: cuesta unas diez veces más y
 obliga a quien llama a interpretar XML. Se pide con `include_raw: true` y llega

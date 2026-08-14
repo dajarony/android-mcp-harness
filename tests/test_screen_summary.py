@@ -304,3 +304,39 @@ class LocatorAgreesWithTheSummaryTests(unittest.TestCase):
 
         self.assertIn("contains(@text, 'Search')])]", query)
         self.assertIn("string-length(@class) - 7) = 'EditText'", query)
+
+
+class KeyboardCoverageTests(unittest.TestCase):
+    """A target hidden behind the keyboard is there, and is not reachable.
+
+    Found driving a real app: ui.get_tree listed the bottom navigation while
+    ui.tap could not touch it, because the dump describes the app window as if
+    the keyboard were not over it. Removing those targets would be a lie of
+    omission; saying nothing was the bug. They are reported, and flagged.
+    """
+
+    # The real inset Android reported while the bug was being reproduced, scaled
+    # to this fixture so that it covers its lower rows and nothing else.
+    KEYBOARD = (0, 550, 1080, 2400)
+
+    def test_a_target_under_the_keyboard_is_flagged_not_hidden(self) -> None:
+        summary = summarize_ui_tree(SCREEN, density=420, keyboard=self.KEYBOARD)
+        covered = [a for a in summary["actions"] if a.get("covered_by_keyboard")]
+        visible = [a for a in summary["actions"] if not a.get("covered_by_keyboard")]
+
+        self.assertTrue(covered, "nothing was flagged as covered")
+        self.assertTrue(visible, "everything was flagged as covered")
+        self.assertEqual(summary["keyboard"], {"open": True, "top": 550})
+
+    def test_the_wi_fi_switch_at_the_bottom_is_the_one_covered(self) -> None:
+        summary = summarize_ui_tree(SCREEN, density=420, keyboard=(0, 850, 1080, 2400))
+        covered = {a["label"] for a in summary["actions"] if a.get("covered_by_keyboard")}
+
+        self.assertIn("Wi-Fi", covered)
+        self.assertNotIn("Search", covered)
+
+    def test_without_a_keyboard_nothing_is_flagged(self) -> None:
+        summary = summarize_ui_tree(SCREEN, density=420)
+
+        self.assertEqual(summary["keyboard"], {"open": False, "top": None})
+        self.assertFalse(any(a.get("covered_by_keyboard") for a in summary["actions"]))

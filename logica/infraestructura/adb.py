@@ -27,6 +27,12 @@ from logica.evidencias.imagen import assert_png_shows_something
 from logica.seguridad.emulador import assert_emulator_udid
 
 
+# Android publishes the keyboard as a window inset, one line per source.
+_IME_INSET = re.compile(
+    r"type=ime\s+frame=\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\][^\n]*?\svisible=(true|false)"
+)
+
+
 def resolve_adb_path() -> str:
     """Resolve the local ADB executable without accepting caller-provided paths."""
 
@@ -126,6 +132,23 @@ def read_display_density(udid: str) -> int:
             "Android did not report a display density.",
         )
     return int(densities[-1])
+
+
+def read_keyboard_frame(udid: str) -> tuple[int, int, int, int] | None:
+    """Read the on-screen keyboard's rectangle, or None when it is not showing.
+
+    Android publishes it as a window inset, which matters because the keyboard
+    is absent from `uiautomator dump`: the dump describes the app window as if
+    nothing were over it, so targets behind the keyboard read as available.
+    """
+
+    output = _run_read_only_adb(udid, ["shell", "dumpsys", "window"], 15).decode(
+        "utf-8", errors="replace"
+    )
+    for match in _IME_INSET.finditer(output):
+        if match.group(5) == "true":
+            return tuple(int(value) for value in match.groups()[:4])  # type: ignore[return-value]
+    return None
 
 
 def read_ui_tree(udid: str) -> str:

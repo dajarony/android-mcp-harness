@@ -163,7 +163,20 @@ def _layout_findings(
     return findings
 
 
-def summarize_ui_tree(ui_xml: str, density: int | None = None) -> dict[str, Any]:
+def _overlaps(rectangle: tuple[int, int, int, int], region: tuple[int, int, int, int]) -> bool:
+    """Whether two rectangles share any area at all."""
+
+    left, top, right, bottom = rectangle
+    return not (
+        right <= region[0] or left >= region[2] or bottom <= region[1] or top >= region[3]
+    )
+
+
+def summarize_ui_tree(
+    ui_xml: str,
+    density: int | None = None,
+    keyboard: tuple[int, int, int, int] | None = None,
+) -> dict[str, Any]:
     """Turn a raw accessibility dump into what a model can actually act on.
 
     The dump is the truth, but handing it over whole makes the caller pay for
@@ -231,6 +244,11 @@ def summarize_ui_tree(ui_xml: str, density: int | None = None) -> dict[str, Any]
                 "width": rectangle[2] - rectangle[0],
                 "height": rectangle[3] - rectangle[1],
             }
+        if keyboard is not None and rectangle is not None and _overlaps(rectangle, keyboard):
+            # The dump describes the app window as if the keyboard were not over
+            # it, so these read as available and cannot be touched. Dropping them
+            # would be a lie of omission; saying nothing was the bug.
+            entry["covered_by_keyboard"] = True
         if entry not in actions:
             actions.append(entry)
             if rectangle is not None:
@@ -248,6 +266,11 @@ def summarize_ui_tree(ui_xml: str, density: int | None = None) -> dict[str, Any]
         "texts": texts[:MAX_TEXTS],
         # ui.scroll works on the screen, so this is a screen-level fact.
         "can_scroll": any(_is_true(node, "scrollable") for node in nodes),
+        # device.back closes the keyboard, so a caller can act on this.
+        "keyboard": {
+            "open": keyboard is not None,
+            "top": keyboard[1] if keyboard is not None else None,
+        },
         "screen": {"width": screen[2] - screen[0], "height": screen[3] - screen[1]},
         "layout_findings": findings,
         "counts": {

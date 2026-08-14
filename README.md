@@ -104,6 +104,11 @@ Tres detalles que importan:
   conmuta, para que el modelo no intente teclear en un botón.
 - **`ambiguous`** aparece cuando ese selector encaja con más de un elemento.
   Pulsar sería una moneda al aire, y es mejor decirlo que fallar en silencio.
+- **Lo tapado por el teclado se avisa.** El volcado de Android describe la
+  ventana como si el teclado no estuviera encima, así que la barra de pestañas
+  se leía disponible y no se podía tocar. Ahora llega `covered_by_keyboard` y un
+  `keyboard: {open, top}`. No se oculta el objetivo: ocultarlo sería mentir por
+  omisión, y `device.back` cierra el teclado.
 - **Los scrollables no se listan** como objetivos: `ui.scroll` actúa sobre la
   pantalla y no acepta selector, así que ofrecerlos sería inventar un blanco.
 

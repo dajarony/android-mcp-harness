@@ -38,7 +38,7 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
     )
     server = MCPServer(
         name="Android Emulator Harness",
-        version="0.7.0",
+        version="0.8.0",
         instructions=(
             "Controls only the configured disposable Android emulator. "
             "Use semantic UI tools and inspect returned evidence."

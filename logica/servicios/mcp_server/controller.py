@@ -27,6 +27,7 @@ from logica.controladores.demo_settings import run_settings_demo
 from logica.evidencias.capturas import ARTIFACTS, save_png_artifact, save_screenshot
 from logica.infraestructura.adb import (
     read_display_density,
+    read_keyboard_frame,
     read_emulator_properties,
     read_installed_packages,
     read_png_screenshot,
@@ -170,7 +171,8 @@ class AndroidMcpController:
             self._density = await asyncio.to_thread(
                 read_display_density, self._config.udid
             )
-        data = summarize_ui_tree(raw, self._density)
+        keyboard = await asyncio.to_thread(read_keyboard_frame, self._config.udid)
+        data = summarize_ui_tree(raw, self._density, keyboard)
         if include_raw is True:
             # The dump stays reachable for a human debugging a selector; it is
             # simply no longer the default price of looking at the screen.

@@ -1,6 +1,6 @@
 {
   "name": "android-mcp-harness",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Local stdio MCP server that observes and controls a disposable Android emulator through Appium, UiAutomator2 and ADB.",
   "scripts": {
     "appium": "appium",

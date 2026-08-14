@@ -6,7 +6,7 @@
 # Salidas: mapa vivo para revisión humana o de agentes.
 
 system: android-mcp-harness
-version: 0.7.0
+version: 0.8.0
 last_updated: 2026-08-14
 sume_version: "1.0"
 

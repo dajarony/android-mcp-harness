@@ -567,3 +567,40 @@
 - Quien vaya a la campaña real sabe exactamente qué le falta y cómo arreglarlo.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Lo que el teclado tapa
+
+**Archivos afectados:**
+
+- Actualizados `logica/infraestructura/adb.py`, `logica/navegacion/resumen.py`
+  y `logica/servicios/mcp_server/controller.py`.
+- Actualizados `tests/test_screen_summary.py`, FASER del servidor y `README.md`.
+
+**Motivo:**
+
+- Conduciendo una aplicación Flutter real, `ui.get_tree` ofrecía la barra de
+  pestañas mientras `ui.tap` no podía tocarla. Medido: con `mInputShown=true` el
+  toque devolvía `UI_ELEMENT_NOT_FOUND`; con el teclado cerrado, `OK`.
+- La causa: el teclado no aparece en el volcado de `uiautomator`. El volcado
+  describe la ventana de la aplicación como si nada estuviera encima, así que lo
+  cubierto se leía como disponible.
+
+**Correcciones:**
+
+- Nueva lectura fija de ADB del marco del teclado, tomada de los insets de
+  ventana de Android, que es donde sí está.
+- Los objetivos bajo ese marco se marcan `covered_by_keyboard`, y el resumen
+  incluye `keyboard: {open, top}`. No se ocultan: ocultarlos sería mentir por
+  omisión, y `device.back` cierra el teclado, así que quien llama puede actuar.
+
+**Impacto:**
+
+- Tercera y última aparición de la misma familia de fallo: el resumen anunciando
+  una puerta que el localizador niega. Las dos anteriores se cerraron ayer y hoy.
+- Verificado contra el dispositivo: con el teclado abierto las tres pestañas se
+  marcan y el toque falla como el arnés había avisado; al cerrarlo, cero marcas
+  y el toque funciona.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
