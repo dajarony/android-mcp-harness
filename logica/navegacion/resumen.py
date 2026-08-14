@@ -55,10 +55,30 @@ def _visible(node: element_tree.Element) -> bool:
     return node.attrib.get("bounds", _EMPTY_BOUNDS) != _EMPTY_BOUNDS
 
 
+def _class_name(node: element_tree.Element) -> str:
+    """Read a widget's class from either dump format.
+
+    `uiautomator dump` emits `<node class="android.widget.EditText">`, while
+    Appium's page source names the element after the class itself. The two
+    sources describe the same screen and this module has to read both.
+    """
+
+    return node.attrib.get("class") or node.tag
+
+
+def _elements(root: element_tree.Element) -> list[element_tree.Element]:
+    """Walk every widget, whichever of the two dump shapes this is."""
+
+    nodes = [node for node in root.iter("node") if _visible(node)]
+    if nodes:
+        return nodes
+    return [node for node in root.iter() if node is not root and _visible(node)]
+
+
 def _role(node: element_tree.Element) -> str | None:
     """Name what a target is for, using Android's own flags rather than pixels."""
 
-    class_name = node.attrib.get("class", "")
+    class_name = _class_name(node)
     if class_name.endswith("EditText"):
         return "input"
     if _is_true(node, "checkable"):
@@ -80,7 +100,7 @@ def _own_label(node: element_tree.Element) -> str:
 def _descendant_label(node: element_tree.Element) -> str:
     """Android often puts the words in a child of the element that is pressable."""
 
-    for child in node.iter("node"):
+    for child in node.iter():
         if child is node or not _visible(child):
             continue
         label = _own_label(child)
@@ -160,7 +180,7 @@ def summarize_ui_tree(ui_xml: str, density: int | None = None) -> dict[str, Any]
             "Android returned a UI hierarchy that could not be parsed.",
         ) from exc
 
-    nodes = [node for node in root.iter("node") if _visible(node)]
+    nodes = _elements(root)
     foreground = next(
         (node.attrib["package"] for node in nodes if node.attrib.get("package")), ""
     )

@@ -234,3 +234,39 @@ class NotFoundIsActionableTests(unittest.TestCase):
         crowded = f'<hierarchy><node package="x" bounds="[0,0][100,999]">{rows}</node></hierarchy>'
 
         self.assertIn("and 30 more", _offered_instead(self._Driver(crowded)))
+
+
+APPIUM_SOURCE = """<?xml version='1.0' encoding='UTF-8'?>
+<hierarchy rotation="0" width="1080" height="2400">
+  <android.widget.FrameLayout package="com.android.settings" bounds="[0,0][1080,2400]">
+    <android.widget.EditText content-desc="Search settings" bounds="[0,100][1080,220]"/>
+    <android.widget.LinearLayout clickable="true" bounds="[0,300][1080,500]">
+      <android.widget.TextView text="Calendar" bounds="[50,340][400,460]"/>
+    </android.widget.LinearLayout>
+  </android.widget.FrameLayout>
+</hierarchy>
+"""
+
+
+class BothDumpShapesTests(unittest.TestCase):
+    """uiautomator names every element <node>; Appium names it after its class.
+
+    The diagnostic that lists what a screen offers came back empty in CI for
+    exactly this reason: it was reading Appium's page source with a parser that
+    only ever looked for <node>.
+    """
+
+    def setUp(self) -> None:
+        self.summary = summarize_ui_tree(APPIUM_SOURCE)
+
+    def test_appium_page_source_is_understood(self) -> None:
+        self.assertEqual(self.summary["foreground_package"], "com.android.settings")
+        self.assertIn("Calendar", self.summary["texts"])
+
+    def test_roles_survive_the_other_shape(self) -> None:
+        roles = {a["label"]: a["role"] for a in self.summary["actions"]}
+        self.assertEqual(roles["Search settings"], "input")
+        self.assertEqual(roles["Calendar"], "button")
+
+    def test_the_uiautomator_shape_still_wins_when_present(self) -> None:
+        self.assertEqual(summarize_ui_tree(SCREEN)["foreground_package"], "com.android.settings")
