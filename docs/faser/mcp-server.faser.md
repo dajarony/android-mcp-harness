@@ -173,6 +173,28 @@ y lo cierra inmediatamente; tras 60 s sin uso un temporizador también lo cierra
 foco. Un cliente que no presente el identificador conserva el comportamiento
 anterior: driver temporal por acción.
 
+**Qué ocurre si nadie cierra el flujo.** Hay tres redes, por orden:
+
+1. **60 s sin uso** (`ANDROID_MCP_FLOW_IDLE_TIMEOUT`): un temporizador cierra el
+   driver. Cada acción que presenta el identificador renueva ese plazo.
+2. **El proceso muere antes de que salte.** Entonces el arnés ya no puede cerrar
+   nada y la sesión queda viva en Appium hasta que su propio
+   `newCommandTimeout` de 60 s la retira. Es la única ventana en la que la
+   promesa de no dejar sesiones huérfanas depende de un tercero, y se declara
+   aquí en vez de fingir que no existe.
+3. **Una acción que se cuelga** no puede agotar el plazo de inactividad, porque
+   retiene el bloqueo del emulador mientras dura. Para eso está el techo de
+   acción descrito abajo.
+
+**Techo por acción** (`ANDROID_MCP_ACTION_TIMEOUT`, 90 s): pasado ese punto el
+arnés deja de esperar, devuelve `OPERATION_TIMEOUT`, **anula el arriendo del
+flujo** —el driver quedó en estado desconocido— y libera el emulador. No es el
+presupuesto declarado de ≤30 s, que es un objetivo: es el límite que garantiza
+que una sola llamada colgada no bloquee a todos los clientes.
+
+El hilo abandonado sigue corriendo hasta que termine solo, porque un hilo no se
+puede matar. Se acepta a sabiendas: lo que importa es que el bloqueo se suelte.
+
 **Error:** `EMULATOR_BUSY` si ya hay un flujo y `INVALID_UI_SESSION` si el token
 es malformado, ajeno o ya ha caducado.
 
@@ -207,7 +229,9 @@ es malformado, ajeno o ya ha caducado.
 - Cada llamada tiene un `operationId` nuevo.
 - Observación no puede invocar tap, input ni ADB mutante.
 - Navegación usa selectores semánticos; coordenadas no forman parte del contrato.
-- Toda sesión abierta se cierra incluso con timeout o excepción.
+- Toda sesión abierta se cierra incluso con timeout o excepción. Un flujo
+  explícito sobrevive entre llamadas a propósito, pero nunca sin plazo: 60 s de
+  inactividad, un techo de 90 s por acción, y el cierre a petición.
 - Un flujo UI solo se usa con el token opaco que lo abrió, no se comparte, y se
   cierra de forma explícita o por caducidad de inactividad.
 - La captura queda en `artifacts/`, directorio ignorado por Git.

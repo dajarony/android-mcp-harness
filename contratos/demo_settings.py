@@ -33,6 +33,10 @@ class SettingsDemoConfig:
     # A flow session retains an Appium driver only while the client is actively
     # chaining actions. It is not a permanent ownership grant.
     flow_idle_timeout_seconds: int = 60
+    # A ceiling, not the declared budget. One UI action is expected to finish
+    # well inside 30 s; this is the point past which the harness stops waiting
+    # so that a hung Appium command can never hold the emulator for everyone.
+    action_timeout_seconds: int = 90
 
 
 @dataclass(frozen=True)

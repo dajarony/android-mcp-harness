@@ -93,7 +93,23 @@ class UiFlowSessions:
                 )
             self._active.expires_at = monotonic() + self._idle_timeout_seconds
             self._schedule_expiry_locked()
-            yield self._active.driver
+            try:
+                yield self._active.driver
+            except HarnessError as exc:
+                # A command that ran out of time leaves the driver in an unknown
+                # state with its worker thread still going. Handing that to the
+                # next action would poison the chain, so the lease is voided:
+                # the next call expires it on entry and the reaper closes it.
+                # The controller has already turned the raw TimeoutError into a
+                # typed one by the time it reaches here, so the code is what is
+                # inspected, not the exception class.
+                if (
+                    exc.code is McpErrorCode.OPERATION_TIMEOUT
+                    and self._active is not None
+                    and self._active.session_id == session_id
+                ):
+                    self._active.expires_at = 0.0
+                raise
 
     async def close(self, raw_session_id: object) -> None:
         """Close the matching flow immediately; a different client cannot close it."""

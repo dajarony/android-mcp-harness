@@ -37,6 +37,9 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
             flow_idle_timeout_seconds=int(
                 os.getenv("ANDROID_MCP_FLOW_IDLE_TIMEOUT", "60")
             ),
+            action_timeout_seconds=int(
+                os.getenv("ANDROID_MCP_ACTION_TIMEOUT", "90")
+            ),
         )
     )
     server = MCPServer(

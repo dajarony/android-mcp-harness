@@ -387,10 +387,23 @@ class AndroidMcpController:
         """Execute against either a transient driver or an owned flow driver."""
 
         try:
-            data = await asyncio.to_thread(action, driver)
+            data = await self._before_the_ceiling(asyncio.to_thread(action, driver))
             data["foreground_package"] = str(driver.current_package)
-            screenshot = await asyncio.to_thread(save_screenshot, driver, evidence_label)
+            screenshot = await self._before_the_ceiling(
+                asyncio.to_thread(save_screenshot, driver, evidence_label)
+            )
             return data, self._artifact_reference(screenshot)
+        except TimeoutError as exc:
+            # Deliberately not wrapped in failure evidence: the driver is the
+            # thing that stopped answering, so asking it for a screenshot would
+            # hang for a second time.
+            raise HarnessError(
+                McpErrorCode.OPERATION_TIMEOUT,
+                "The Android UI action did not finish within "
+                f"{self._config.action_timeout_seconds} s and was abandoned so the "
+                "emulator stays usable. Raise ANDROID_MCP_ACTION_TIMEOUT if the "
+                "device is simply slow.",
+            ) from exc
         except HarnessError as exc:
             raise self._with_failure_evidence(exc, driver, evidence_label) from exc
         except Exception as exc:
@@ -399,6 +412,18 @@ class AndroidMcpController:
                 "The Android UI action failed unexpectedly; inspect local evidence and logs.",
             )
             raise self._with_failure_evidence(error, driver, evidence_label) from exc
+
+    async def _before_the_ceiling(self, work: Awaitable[Any]) -> Any:
+        """Stop waiting on a driver call that has stopped answering.
+
+        A worker thread cannot be killed, so the abandoned command keeps running
+        against a driver nobody will read again. That is accepted on purpose:
+        what matters is that the coroutine unwinds, the flow lease is voided and
+        the emulator lock is released, instead of one hung call freezing every
+        client until the process is restarted.
+        """
+
+        return await asyncio.wait_for(work, self._config.action_timeout_seconds)
 
     @staticmethod
     def _scroll_action(driver: Any, direction: str) -> dict[str, Any]:

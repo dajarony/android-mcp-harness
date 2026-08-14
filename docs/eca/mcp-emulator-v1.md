@@ -15,7 +15,6 @@
 | SEQ-EVID-1 | Dos `screen.capture` consecutivas | Un reintento no sobrescribe evidencia previa. | Dos `artifact_id` diferentes y ambos PNG existentes. |
 | CONTRACT-STDIO-1 | Proceso MCP stdio | El cliente real descubre el catálogo y llama estado sin red. | `tools/list` exacto y respuesta estructurada. |
 | FLOW-UI-1 | `app.open` → `ui.tap` → `ui.scroll` → `device.back` | Las acciones semánticas recorren Settings sin coordenadas del modelo. | Paquete foreground, selector devuelto y una evidencia por acción. |
-| CONTRACT-SCROLL-XY-1 | `ui.scroll(left \| right)` | Los carruseles se desplazan por una intención cardinal, sin distancia ni coordenadas de entrada. | Gesto horizontal fijo generado por el servidor; requiere una app con carrusel para ECA real. |
 | FLOW-TEXT-1 | `app.open` → `ui.tap` → `ui.type_text` | El texto llega a un campo Android real por selector semántico. | Conteo de caracteres, árbol posterior y PNG. |
 | FLOW-CHAIN-1 | `ui.session.open` → `ui.tap` → `ui.type_text` → `ui.session.close` | La cadena conserva el foco/campo entre acciones y libera el driver al terminar. | Texto visible en árbol, PNG de las acciones y cierre `ok`. |
 | FLOW-SEL-ALL-1 | `settings.open_apps` → `ui.get_tree` → localizador | Cada selector habilitado, no ambiguo y no cubierto que el resumen ofrece encuentra un elemento en esa misma pantalla. | Un elemento visible por selector, sin coordenadas ni XML interpretado por el cliente. |
