@@ -358,6 +358,11 @@ selectores deben salir de `ui.get_tree` de tu propia app, no inventarse.
 El ejemplo usa un paquete ficticio: sustituye `package_name` por el de la app
 Flutter instalada en el AVD y sus pasos por la tarea que quieres verificar.
 
+Para la APK local de Auralis Compra, el flujo seguro de exploración vive en
+[`docs/auralis-compra-exploration-flow.example.json`](docs/auralis-compra-exploration-flow.example.json).
+Parte de la pestaña Lista, solo visita Historial y Ajustes, y no añade artículos
+ni accede a presupuesto o pago.
+
 Solo dos variables. Ambas apuntan a tu máquina y tienen valor por defecto.
 
 ---

@@ -24,9 +24,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from mcp import StdioServerParameters
-from mcp.client import Client
-from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 from contratos.cliente_referencia import parse_reference_flow
 from logica.servicios.cliente_referencia.runner import run_reference_flow
@@ -62,7 +61,12 @@ async def _run(flow_path: Path) -> int:
         env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT)},
     )
     async with stdio_client(server) as (read, write):
-        async with Client(read, write) as client:
+        # The stdio transport exposes reader/writer streams, not a high-level
+        # in-memory Client.  ClientSession owns this transport and must be
+        # initialized before tools can be called.
+        async with ClientSession(read, write) as client:
+            await client.initialize()
+
             async def call(tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 return _structured_payload(await client.call_tool(tool, arguments))
 

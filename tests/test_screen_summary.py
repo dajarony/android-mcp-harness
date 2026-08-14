@@ -65,6 +65,15 @@ DESCENDANT_ACCESSIBILITY_LABEL = """<?xml version='1.0' encoding='UTF-8'?>
 """
 
 
+HINT_ONLY_FIELD = """<?xml version='1.0' encoding='UTF-8'?>
+<hierarchy>
+  <node class="android.widget.FrameLayout" package="com.example.compra" bounds="[0,0][1080,2400]">
+    <node class="android.widget.EditText" hint="¿Qué necesitas comprar?" clickable="true" focusable="true" bounds="[42,1900][1038,2100]"/>
+  </node>
+</hierarchy>
+"""
+
+
 class ScreenSummaryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.summary = summarize_ui_tree(SCREEN)
@@ -109,6 +118,16 @@ class ScreenSummaryTests(unittest.TestCase):
 
         self.assertEqual(actions[0]["label"], "Navigate up")
         self.assertEqual(actions[0]["selector"], {"content_desc": "Navigate up"})
+
+    def test_hint_only_field_is_offered_for_semantic_text_input(self) -> None:
+        """A field with no id or label must still be writable by its hint."""
+
+        actions = summarize_ui_tree(HINT_ONLY_FIELD)["actions"]
+
+        self.assertEqual(actions[0]["role"], "input")
+        self.assertEqual(
+            actions[0]["selector"], {"input_hint": "¿Qué necesitas comprar?"}
+        )
 
     def test_scrolling_is_a_screen_fact_not_a_fake_target(self) -> None:
         """ui.scroll takes no selector, so a scrollable is never offered as one."""

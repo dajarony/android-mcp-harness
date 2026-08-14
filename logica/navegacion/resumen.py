@@ -94,7 +94,12 @@ def _role(node: element_tree.Element) -> str | None:
 
 
 def _own_label(node: element_tree.Element) -> str:
-    return (node.attrib.get("text") or node.attrib.get("content-desc") or "").strip()
+    return (
+        node.attrib.get("text")
+        or node.attrib.get("content-desc")
+        or node.attrib.get("hint")
+        or ""
+    ).strip()
 
 
 def _descendant_label(node: element_tree.Element) -> str:
@@ -132,6 +137,9 @@ def _candidate_selector(
         text = (candidate.attrib.get("text") or "").strip()
         if text:
             return {"text": text}, text
+        hint = (candidate.attrib.get("hint") or "").strip()
+        if hint:
+            return {"input_hint": hint}, hint
 
     # ``label`` is only a presentation fallback.  It must not be turned into a
     # selector after every real accessibility attribute was absent.
@@ -146,6 +154,7 @@ def _selector_attribute(selector: dict[str, str]) -> str:
     return {
         "resource_id": "resource-id",
         "content_desc": "content-desc",
+        "input_hint": "hint",
     }.get(next(iter(selector)), "text")
 
 
@@ -188,6 +197,7 @@ def _semantic_context(
                 ("resource_id", "resource-id"),
                 ("content_desc", "content-desc"),
                 ("text", "text"),
+                ("input_hint", "hint"),
             ):
                 value = (ancestor.attrib.get(attribute) or "").strip()
                 if not value:
@@ -310,7 +320,7 @@ def summarize_ui_tree(
     # A selector that matches two things is a coin toss, so count first and say so.
     seen: Counter[str] = Counter()
     for node in nodes:
-        for attribute in ("resource-id", "content-desc", "text"):
+        for attribute in ("resource-id", "content-desc", "text", "hint"):
             value = (node.attrib.get(attribute) or "").strip()
             if value:
                 seen[f"{attribute}={value}"] += 1

@@ -1,0 +1,29 @@
+{
+  "package_name": "com.example.compra",
+  "steps": [
+    {
+      "tool": "ui.tap",
+      "arguments": {
+        "selector": {
+          "content_desc": "Historial\nTab 2 of 3"
+        }
+      }
+    },
+    {
+      "tool": "device.back",
+      "arguments": {}
+    },
+    {
+      "tool": "ui.tap",
+      "arguments": {
+        "selector": {
+          "content_desc": "Ajustes\nTab 3 of 3"
+        }
+      }
+    },
+    {
+      "tool": "device.back",
+      "arguments": {}
+    }
+  ]
+}
