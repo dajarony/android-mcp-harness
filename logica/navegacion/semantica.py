@@ -50,18 +50,17 @@ def _locator(selector: SemanticSelector) -> tuple[str, str]:
     if selector.kind == "text":
         return AppiumBy.XPATH, f"//*[@text={literal}]"
     if selector.kind == "input_hint":
-        # A field can carry its hint in four different places depending on the
-        # Android release and toolkit: Compose puts it on a child's content-desc,
-        # while a classic EditText holds it as its own hint, description or the
-        # placeholder text it draws. Matching only the first shape tied this
-        # selector to one Android version, which is exactly what it was invented
-        # to avoid. A missing attribute simply does not match, so asking for all
-        # four costs nothing.
-        # The class is matched by suffix, not by equality. Android's search field
-        # is a plain EditText on one release and an AppCompatEditText on another,
-        # and demanding the exact framework class made this selector fail on the
-        # very screen it was written for. XPath 1.0 has no ends-with, so the last
-        # eight characters are compared instead.
+        # Two rules, both learned the hard way from a real screen.
+        #
+        # The class is matched by suffix, not by equality: Android's search field
+        # is a plain EditText on one release and an AppCompatEditText on another.
+        # XPath 1.0 has no ends-with, so the last eight characters are compared.
+        #
+        # The hint is looked for in the same four places the screen summary looks,
+        # descendants included, and by text as well as description. When these two
+        # disagree the summary offers a target the locator cannot then find, which
+        # is the worst failure this harness can produce: it advertises a door and
+        # then says the door is not there.
         editable = "substring(@class, string-length(@class) - 7) = 'EditText'"
         return (
             AppiumBy.XPATH,
@@ -69,7 +68,8 @@ def _locator(selector: SemanticSelector) -> tuple[str, str]:
             f"contains(@hint, {literal})"
             f" or contains(@content-desc, {literal})"
             f" or contains(@text, {literal})"
-            f" or .//*[contains(@content-desc, {literal})])]",
+            f" or .//*[contains(@content-desc, {literal})"
+            f" or contains(@text, {literal})])]",
         )
     return AppiumBy.XPATH, f"//*[contains(@text, {literal})]"
 

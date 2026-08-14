@@ -191,7 +191,7 @@ class InputHintLocatorTests(unittest.TestCase):
         for attribute in ("@hint", "@content-desc", "@text"):
             with self.subTest(attribute=attribute):
                 self.assertIn(f"contains({attribute}, 'Search')", self.query)
-        self.assertIn(".//*[contains(@content-desc, 'Search')]", self.query)
+        self.assertIn(".//*[contains(@content-desc, 'Search')", self.query)
 
     def test_it_matches_a_text_field_by_suffix_not_by_exact_class(self) -> None:
         """AppCompatEditText is still an edit text; demanding equality was a bug."""
@@ -272,3 +272,35 @@ class BothDumpShapesTests(unittest.TestCase):
 
     def test_the_uiautomator_shape_still_wins_when_present(self) -> None:
         self.assertEqual(summarize_ui_tree(SCREEN)["foreground_package"], "com.android.settings")
+
+
+class LocatorAgreesWithTheSummaryTests(unittest.TestCase):
+    """The summary must never offer a target the locator then cannot find.
+
+    On API 34 the summary listed 'Search...' as an input while the locator
+    matched nothing, because the summary reads a descendant's text and the
+    locator only read a descendant's content-desc. Advertising a door and then
+    denying it exists is the worst failure this harness can produce.
+    """
+
+    FIELD = """<?xml version='1.0' encoding='UTF-8'?>
+    <hierarchy>
+      <node class="android.widget.FrameLayout" package="com.x" bounds="[0,0][1080,2400]">
+        <node class="androidx.appcompat.widget.AppCompatEditText" bounds="[0,0][1080,120]">
+          <node class="android.widget.TextView" text="Search&#8230;" bounds="[10,10][500,110]"/>
+        </node>
+      </node>
+    </hierarchy>
+    """
+
+    def test_the_summary_calls_it_an_input(self) -> None:
+        actions = summarize_ui_tree(self.FIELD)["actions"]
+        self.assertEqual([a["role"] for a in actions], ["input"])
+
+    def test_the_locator_looks_where_the_summary_looked(self) -> None:
+        from logica.navegacion.semantica import _locator
+
+        _, query = _locator(validate_selector({"input_hint": "Search"}))
+
+        self.assertIn("contains(@text, 'Search')])]", query)
+        self.assertIn("string-length(@class) - 7) = 'EditText'", query)
