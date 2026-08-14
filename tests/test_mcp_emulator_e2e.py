@@ -7,9 +7,11 @@ emulator through the declared Settings flow.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
+import subprocess
 import urllib.request
 import unittest
 import xml.etree.ElementTree as element_tree
@@ -19,7 +21,12 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client import Client
 from mcp.client.stdio import stdio_client
 
+from contratos.demo_settings import SettingsDemoConfig
+from contratos.ui_control import validate_selector
 from entradas.mcp.server import build_server
+from logica.navegacion.semantica import find_element
+from logica.infraestructura.adb import resolve_adb_path
+from logica.sesiones.appium import close_driver, create_device_driver
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -73,12 +80,46 @@ def visible_package(ui_tree: str) -> str:
     raise AssertionError("The UI tree did not name a visible package.")
 
 
+def reset_to_a_known_screen() -> None:
+    """Put Android back on the home screen with Settings not running.
+
+    One case used to be able to explain the next: a run that left the keyboard
+    up or the Settings search open changed what the following case found, and
+    FLOW-NAV-1 failed once for that reason and passed alone.
+
+    This only establishes a starting point. It navigates nothing the campaign is
+    meant to prove: `settings.open_apps` still has to reach Apps by itself, and
+    no promise is relaxed to accommodate a dirty screen. Doing it through ADB
+    rather than the harness is deliberate too — the fixture must not depend on
+    the very tools it is preparing the ground for.
+    """
+
+    adb = resolve_adb_path()
+    for arguments in (
+        ["shell", "input", "keyevent", "KEYCODE_HOME"],
+        ["shell", "am", "force-stop", "com.android.settings"],
+        # The search bar lives in a second package, and it is the one that was
+        # leaving a text field focused behind it.
+        ["shell", "am", "force-stop", "com.google.android.settings.intelligence"],
+    ):
+        subprocess.run(
+            [adb, "-s", "emulator-5554", *arguments],
+            check=False,
+            capture_output=True,
+            timeout=20,
+        )
+
+
 @unittest.skipUnless(
     RUN_EMULATOR_ECA,
     "Set ANDROID_MCP_RUN_EMULATOR=1 to run the disposable-emulator ECA campaign.",
 )
 class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
     """Verify the business promises of the MCP server against the real AVD."""
+
+    async def asyncSetUp(self) -> None:
+        await asyncio.to_thread(reset_to_a_known_screen)
+        await asyncio.sleep(1)
 
     async def test_observation_is_real_and_does_not_navigate(self) -> None:
         """INV-OBS-1: status, tree and capture leave the foreground UI unchanged."""
@@ -166,6 +207,8 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
                 "ui.get_tree",
                 "screen.capture",
                 "settings.open_apps",
+                "ui.session.open",
+                "ui.session.close",
                 "app.list_installed",
                 "app.open",
                 "ui.tap",
@@ -244,30 +287,92 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue((PROJECT_ROOT / typed["evidence"]["path"]).is_file())
 
-    async def test_the_tree_hands_back_a_selector_that_actually_works(self) -> None:
-        """FLOW-SEL-1: what ui.get_tree offers, ui.tap must accept and hit.
-
-        This closes the loop the harness exists for: the model reads the screen
-        and gets back the exact vocabulary it must speak, with no XML parsing,
-        no coordinates and no guessing on its side.
-        """
+    async def test_explicit_ui_flow_keeps_input_state_then_releases_the_driver(self) -> None:
+        """FLOW-CHAIN-1: write through one lease, then release it explicitly."""
 
         async with Client(build_server()) as client:
             await client.call_tool("settings.open_apps")
-            tree = structured_payload(await client.call_tool("ui.get_tree"))
-            offered = next(
-                action
-                for action in tree["data"]["actions"]
-                if action["enabled"] and not action.get("ambiguous")
-            )
-            tapped = structured_payload(
-                await client.call_tool("ui.tap", {"selector": offered["selector"]})
-            )
+            opened = structured_payload(await client.call_tool("ui.session.open"))
+            session_id = opened["data"]["session_id"]
+            try:
+                tapped = structured_payload(
+                    await client.call_tool(
+                        "ui.tap",
+                        {
+                            "selector": {"content_desc": "Search"},
+                            "session_id": session_id,
+                        },
+                    )
+                )
+                typed = structured_payload(
+                    await client.call_tool(
+                        "ui.type_text",
+                        {
+                            "selector": {"input_hint": "Search"},
+                            "text": "Apps",
+                            "session_id": session_id,
+                        },
+                    )
+                )
+                tree = structured_payload(
+                    await client.call_tool("ui.get_tree", {"session_id": session_id})
+                )
+            finally:
+                closed = structured_payload(
+                    await client.call_tool("ui.session.close", {"session_id": session_id})
+                )
 
-        self.assertTrue(tree["ok"], tree.get("error"))
+        self.assertTrue(opened["ok"], opened.get("error"))
         self.assertTrue(tapped["ok"], tapped.get("error"))
-        self.assertEqual(tapped["data"]["target"], offered["selector"])
-        self.assertTrue((PROJECT_ROOT / tapped["evidence"]["path"]).is_file())
+        self.assertTrue(typed["ok"], typed.get("error"))
+        self.assertTrue(tree["ok"], tree.get("error"))
+        self.assertTrue(closed["ok"], closed.get("error"))
+        self.assertEqual(typed["data"]["characters_sent"], 4)
+        self.assertTrue(any("Apps" in text for text in tree["data"]["texts"]))
+
+    async def test_every_reachable_tree_selector_resolves(self) -> None:
+        """FLOW-SEL-ALL-1: every actionable selector reaches a real element.
+
+        This closes the loop the harness exists for: the model reads the screen
+        and gets back the exact vocabulary it must speak, with no XML parsing,
+        no coordinates and no guessing on its side. The driver stays on the
+        same stable Settings screen: clicking each offered target would change
+        that screen and would only prove the first one.
+        """
+
+        async with Client(build_server()) as client:
+            opened = structured_payload(await client.call_tool("settings.open_apps"))
+            tree = structured_payload(await client.call_tool("ui.get_tree"))
+
+        self.assertTrue(opened["ok"], opened.get("error"))
+        self.assertTrue(tree["ok"], tree.get("error"))
+        offered = [
+            action
+            for action in tree["data"]["actions"]
+            if action["enabled"]
+            and not action.get("ambiguous")
+            and not action.get("covered_by_keyboard")
+        ]
+        self.assertTrue(offered, "Settings offered no reachable semantic targets")
+
+        config = SettingsDemoConfig(
+            appium_url=os.getenv("APPIUM_URL", "http://127.0.0.1:4723"),
+            udid=os.getenv("ANDROID_UDID", "emulator-5554"),
+            connect_timeout_seconds=int(
+                os.getenv("ANDROID_MCP_CONNECT_TIMEOUT", "120")
+            ),
+        )
+        driver = await asyncio.to_thread(create_device_driver, config)
+        try:
+            for action in offered:
+                selector = action["selector"]
+                with self.subTest(selector=selector, role=action["role"]):
+                    element = await asyncio.to_thread(
+                        find_element, driver, validate_selector(selector)
+                    )
+                    self.assertTrue(element.is_displayed())
+        finally:
+            await asyncio.to_thread(close_driver, driver)
 
     async def test_the_summary_is_far_cheaper_than_the_raw_dump(self) -> None:
         """The dump stays reachable, but looking at the screen stops costing it."""

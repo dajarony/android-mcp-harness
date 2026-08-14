@@ -23,7 +23,8 @@ shell ni un UDID físico.
 |---|---|---|---|
 | `activeOperation` | `bool`, `false` | `EmulatorOperationGate` | Solo una llamada sobre el emulador. |
 | `operationId` | UUID nuevo | `McpToolResult` | No reutilizable. |
-| `driver` | temporal / `null` | sesión Appium | Se cierra en `finally`. |
+| `driver` (acción suelta) | temporal / `null` | sesión Appium | Se abre para una acción y se cierra en `finally`. |
+| `driver` (flujo explícito) | vivo entre llamadas / `null` | `UiFlowSessions` | Sobrevive a propósito mientras el cliente encadena. **No** se cierra en `finally`: lo cierra `ui.session.close`, los 60 s de inactividad o el techo por acción al anular el arriendo. Nunca sin plazo. |
 | `evidencePath` | `str / null` | evidencia | Único y bajo `artifacts/`. |
 
 ## ENTRADAS
@@ -32,7 +33,9 @@ shell ni un UDID físico.
 - `app.open(package_name: str)`.
 - `ui.tap(selector: object)`.
 - `ui.type_text(selector: object, text: str)`.
-- `ui.scroll(direction: "up" | "down")`.
+- `ui.scroll(direction: "up" | "down")`. El gesto horizontal existe en la capa de
+  navegación pero no se publica: no hay campaña que lo mida, porque hace falta
+  una aplicación con carrusel. Entra cuando exista su fila de oráculo.
 - `device.back`: sin argumentos.
 
 `selector` contiene exactamente una de estas formas:
@@ -43,6 +46,14 @@ shell ni un UDID físico.
 {"content_desc": "Navigate up"}
 {"text_contains": "Settings"}
 {"input_hint": "Search"}
+```
+
+El objetivo puede añadir una sola clave opcional `within`, con otro selector
+simple y no anidado que debe ser un ancestro semántico del objetivo. El servidor
+solo publica ese contexto cuando reduce un destino repetido a uno único:
+
+```json
+{"text": "Save", "within": {"content_desc": "Personal profile"}}
 ```
 
 ## EVENTOS
@@ -72,7 +83,7 @@ capturar evidencia. No se acepta un componente aportado por MCP.
 
 ### Evento: `ui.tap`
 
-**Condición:** selector semántico exacto y gate libre.
+**Condición:** selector semántico exacto —con contexto `within` opcional— y gate libre.
 
 **Acción:** abrir sesión, localizar un único elemento durante ≤10 s, pulsarlo,
 capturar y cerrar.
@@ -95,8 +106,10 @@ capturar y cerrar.
 
 **Condición:** dirección `up` o `down`.
 
-**Acción:** ejecutar un gesto interno normalizado sobre la ventana actual;
-ninguna coordenada entra desde MCP. Capturar y cerrar.
+**Acción:** ejecutar un gesto interno normalizado sobre la ventana actual. La
+dirección describe el movimiento del contenido; el servidor calcula el arrastre
+opuesto dentro del 25%–75% central de la pantalla. Nunca entran coordenadas,
+distancias ni duración desde MCP. Capturar y cerrar.
 
 **Resultado:** dirección realizada y paquete foreground.
 
@@ -116,11 +129,20 @@ cerrar.
 ## VALIDACIONES
 
 - `package_name` cumple la sintaxis Android; no es un comando.
-- Selector: una sola clave permitida, valor no vacío ≤256 caracteres y sin NUL.
+- Selector: una clave objetivo permitida, valor no vacío ≤256 caracteres y sin
+  NUL; `within` es opcional, lleva una clave objetivo y no admite más anidación.
 - Texto: 1–512 caracteres, sin NUL.
-- Dirección: exactamente `up` o `down`.
+- Dirección: exactamente `up` o `down`. El gesto horizontal existe pero no se
+  publica hasta tener campaña que lo mida.
 - Una acción siempre se serializa mediante el gate.
-- Cada acción obtiene evidencia propia y cierra driver aunque falle.
+- Cada acción suelta obtiene evidencia propia y cierra su driver aunque falle.
+  Una acción de flujo obtiene evidencia igual, pero **no** cierra el driver: eso
+  es lo que la cadena viene a evitar.
+- Toda llamada al driver que se hace reteniendo el gate está acotada por el techo
+  por acción: la acción, la lectura del paquete en primer plano, la captura de
+  evidencia —también la de fallo—, la lectura del árbol de un flujo y el propio
+  cierre. Ninguna comprobación posterior a la acción queda fuera; si lo estuviera,
+  bastaría con que colgase para retener el emulador pese al techo.
 - Ninguna herramienta recibe ni ejecuta ADB shell arbitrario.
 - El UDID y el punto final de Appium se validan en el creador de sesión, embudo
   común de las seis acciones: un teléfono físico o un Appium remoto se rechazan
@@ -155,6 +177,8 @@ cerrar.
 
 - Se elige MCP stdio y el AVD desechable como frontera de control.
 - Se elige acción semántica, no coordenadas proporcionadas por el modelo.
+- Se usa un ancestro semántico para desambiguar solo cuando el árbol prueba que
+  deja un objetivo único; sin esa prueba se conserva `ambiguous`.
 - Se elige validar la configuración en el creador de sesión y no en cada
   herramienta: un embudo único no se olvida cuando se añade la herramienta once.
 - Se pospone cámara, permisos y teléfono físico hasta tener un contrato propio.

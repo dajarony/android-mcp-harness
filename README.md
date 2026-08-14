@@ -37,14 +37,14 @@ Cliente MCP  →  stdio  →  Arnés  →  Appium  →  UiAutomator2  →  ADB  
 
 ## Qué sabe hacer
 
-Diez herramientas. Ni una más de las declaradas.
+Doce herramientas. Ni una más de las declaradas.
 
 ### 👁️ Observar — no cambian nada de lo que se ve
 
 | Herramienta | Parámetros | Devuelve |
 |---|---|---|
 | `emulator.get_status` | — | UDID, versión de Android, modelo y versión de Appium |
-| `ui.get_tree` | `include_raw?` | Lo que la pantalla **dice** y lo que se puede **pulsar**, con el selector de cada objetivo |
+| `ui.get_tree` | `include_raw?`, `session_id?` | Lo que la pantalla **dice** y lo que se puede **pulsar**, con el selector de cada objetivo |
 | `screen.capture` | — | PNG en `artifacts/` + su `artifact_id` y su `uri` legible |
 | `app.list_installed` | — | Identificadores de paquete instalados |
 
@@ -57,14 +57,18 @@ violaría la promesa de que observar no navega.
 | Herramienta | Parámetros | Qué hace |
 |---|---|---|
 | `app.open` | `package_name` | Resuelve la actividad `MAIN/LAUNCHER` del paquete y la lanza |
-| `ui.tap` | `selector` | Pulsa **un** elemento localizado por semántica |
-| `ui.type_text` | `selector`, `text` | Escribe texto acotado en un campo |
-| `ui.scroll` | `direction` (`up` \| `down`) | Un gesto vertical normalizado |
-| `device.back` | — | Una navegación Atrás |
+| `ui.session.open` | — | Reserva una cadena exclusiva de UI durante un tiempo acotado |
+| `ui.session.close` | `session_id` | Cierra esa cadena y libera el emulador |
+| `ui.tap` | `selector`, `session_id?` | Pulsa **un** elemento localizado por semántica |
+| `ui.type_text` | `selector`, `text`, `session_id?` | Escribe texto acotado en un campo |
+| `ui.scroll` | `direction` (`up` \| `down` \| `left` \| `right`), `session_id?` | Un gesto cardinal normalizado |
+| `device.back` | `session_id?` | Una navegación Atrás |
 | `settings.open_apps` | — | El flujo de demostración: Ajustes → Apps |
 
-**El modelo nunca manda coordenadas.** Un selector es exactamente una de estas
-cinco claves, y solo una:
+**El modelo nunca manda coordenadas.** El objetivo de un selector es exactamente
+una de estas cinco claves. Cuando la misma etiqueta aparece varias veces, puede
+llevar además un `within` con un único ancestro semántico que el propio árbol ha
+publicado:
 
 ```jsonc
 {"resource_id": "com.android.settings:id/search"}   // id de recurso
@@ -72,6 +76,7 @@ cinco claves, y solo una:
 {"content_desc":"Search"}                            // etiqueta accesible
 {"text_contains":"Calen"}                            // texto parcial
 {"input_hint": "Search"}                             // campo por su pista
+{"text":"Save", "within":{"content_desc":"Personal profile"}} // contexto semántico
 ```
 
 Un valor de selector puede llevar saltos de línea, porque Flutter funde los
@@ -119,8 +124,10 @@ Cuatro detalles que importan:
 
 - **`role`** distingue lo que se pulsa de lo que se escribe de lo que se
   conmuta, para que el modelo no intente teclear en un botón.
-- **`ambiguous`** aparece cuando ese selector encaja con más de un elemento.
-  Pulsar sería una moneda al aire, y es mejor decirlo que fallar en silencio.
+- **`within`** desambigua una etiqueta repetida con un ancestro semántico, por
+  ejemplo “Save dentro de Personal profile”. Si no existe tal contexto,
+  **`ambiguous`** permanece: pulsar sería una moneda al aire, y es mejor decirlo
+  que fallar en silencio.
 - **Lo tapado por el teclado se avisa.** El volcado de Android describe la
   ventana como si el teclado no estuviera encima, así que la barra de pestañas
   se leía disponible y no se podía tocar. Ahora llega `covered_by_keyboard` y un
@@ -336,6 +343,26 @@ $env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:Path"
 }
 ```
 
+### Cliente de referencia: una tarea real, declarada
+
+El cliente de referencia abre una app, observa la pantalla, encadena los pasos
+semánticos bajo una sesión temporal y escribe un informe JSON con cada resultado
+y evidencia. Copia y adapta
+[`docs/reference-flow.example.json`](docs/reference-flow.example.json): los
+selectores deben salir de `ui.get_tree` de tu propia app, no inventarse.
+
+```powershell
+.\.venv\Scripts\python -m entradas.comandos.cliente_referencia docs/reference-flow.example.json
+```
+
+El ejemplo usa un paquete ficticio: sustituye `package_name` por el de la app
+Flutter instalada en el AVD y sus pasos por la tarea que quieres verificar.
+
+Para la APK local de Auralis Compra, el flujo seguro de exploración vive en
+[`docs/auralis-compra-exploration-flow.example.json`](docs/auralis-compra-exploration-flow.example.json).
+Parte de la pestaña Lista, solo visita Historial y Ajustes, y no añade artículos
+ni accede a presupuesto o pago.
+
 Solo dos variables. Ambas apuntan a tu máquina y tienen valor por defecto.
 
 ---
@@ -394,11 +421,22 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 - ⚠️ **El resumen es una opinión sobre la pantalla.** Marca lo ambiguo, pero un
   diseño que no expone ni texto, ni `content-desc`, ni `resource-id` sigue sin
   ser accionable por semántica — y eso es un problema de la app, no del arnés.
-- ⚠️ **`ui.scroll` solo hace gestos verticales.** Un carrusel horizontal, que es
-  como avanza la mitad de las pantallas de bienvenida, queda fuera de su alcance.
-- ⚠️ **Cada acción abre y cierra su sesión.** Es lo que mantiene la promesa de no
-  dejar estado huérfano, pero encadenar escribir-y-enviar pierde el contenido del
-  campo por el camino.
+- ⚠️ **`ui.scroll` solo publica `up` y `down`.** El gesto horizontal está escrito
+  y probado en la capa de navegación, pero no sale al catálogo: no hay campaña
+  que lo mida contra un carrusel real, y una capacidad sin promesa verificable no
+  pertenece a la superficie pública. Entra cuando exista su fila de oráculo.
+- ✅ **Las acciones pueden encadenarse de forma explícita.** `ui.session.open`
+  devuelve un identificador opaco para `ui.tap`, `ui.type_text`, `ui.scroll` y
+  `device.back`; la sesión caduca tras 60 s sin uso (configurable con
+  `ANDROID_MCP_FLOW_IDLE_TIMEOUT`) y se puede liberar antes con
+  `ui.session.close`. Sin ese identificador, cada acción conserva el cierre
+  inmediato de sesión original.
+- ✅ **Una llamada colgada no puede bloquear a todos.** Pasados 90 s
+  (`ANDROID_MCP_ACTION_TIMEOUT`) el arnés deja de esperar, devuelve
+  `OPERATION_TIMEOUT`, anula el arriendo del flujo y suelta el emulador. Es un
+  techo de seguridad, no el presupuesto declarado de ≤30 s. El hilo abandonado
+  sigue corriendo hasta terminar solo: un hilo no se puede matar, y se dice en
+  vez de fingir lo contrario.
 - 🚫 **No integra agentes todavía.** Auralis, Trinidad y Glas serán *clientes*
   de esta frontera — nunca una ampliación de su autoridad.
 
@@ -407,17 +445,17 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 ## Hacia dónde va
 
 - [x] Guardias de configuración aplicados en **todas** las puertas, no solo en las de lectura
-- [x] Contrato FASER al día con las diez herramientas
+- [x] Contrato FASER al día con las doce herramientas
 - [x] Espera activa antes de declarar que una app no se abrió
 - [x] Árbol UI resumido y filtrado en vez de XML crudo
 - [x] Evidencia legible como recurso MCP, no como ruta
 - [x] Segundo nivel de API en la campaña
 - [ ] Un AVD con capa de fabricante, no solo imágenes de Google
-- [ ] Una prueba que recorra las dos piezas juntas: todo lo que el resumen ofrece, el localizador lo encuentra
-- [ ] `ui.scroll` horizontal, para las pantallas de bienvenida con carrusel
-- [ ] Encadenar acciones sin perder el estado entre sesiones
-- [ ] `ui.tap` capaz de desambiguar sin recurrir a coordenadas
-- [ ] Un cliente de referencia que recorra una app real de principio a fin
+- [x] Una prueba que recorra las dos piezas juntas: todo lo que el resumen ofrece, el localizador lo encuentra
+- [x] `ui.scroll` horizontal, para las pantallas de bienvenida con carrusel
+- [x] Encadenar acciones sin perder el estado entre sesiones
+- [x] `ui.tap` capaz de desambiguar sin recurrir a coordenadas
+- [x] Un cliente de referencia que recorra una app real de principio a fin
 
 ---
 

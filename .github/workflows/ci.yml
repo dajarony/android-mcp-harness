@@ -46,6 +46,7 @@ jobs:
               "emulator.get_status", "ui.get_tree", "screen.capture",
               "settings.open_apps", "app.list_installed", "app.open",
               "ui.tap", "ui.type_text", "ui.scroll", "device.back",
+              "ui.session.open", "ui.session.close",
           }
 
           async def main() -> None:

@@ -8,7 +8,7 @@ selector is ambiguous.
 import unittest
 
 from contratos.mcp import HarnessError
-from contratos.ui_control import validate_selector
+from contratos.ui_control import selector_mapping, validate_selector
 from logica.evidencias.capturas import read_artifact_bytes
 from logica.navegacion.resumen import summarize_ui_tree
 
@@ -31,6 +31,44 @@ SCREEN = """<?xml version='1.0' encoding='UTF-8'?>
     <node class="android.widget.EditText" content-desc="Search" resource-id="com.android.settings:id/q" bounds="[0,0][1080,100]"/>
     <node class="android.widget.Switch" checkable="true" text="Wi-Fi" bounds="[0,800][1080,900]"/>
     <node class="android.widget.TextView" text="invisible" bounds="[0,0][0,0]"/>
+  </node>
+</hierarchy>
+"""
+
+
+CONTEXTUAL_DUPLICATES = """<?xml version='1.0' encoding='UTF-8'?>
+<hierarchy>
+  <node class="android.widget.FrameLayout" package="com.example" bounds="[0,0][1080,2400]">
+    <node content-desc="Personal profile" bounds="[0,100][1080,500]">
+      <node class="android.widget.LinearLayout" clickable="true" bounds="[0,100][1080,300]">
+        <node class="android.widget.TextView" text="Save" bounds="[30,140][300,240]"/>
+      </node>
+    </node>
+    <node content-desc="Work profile" bounds="[0,500][1080,900]">
+      <node class="android.widget.LinearLayout" clickable="true" bounds="[0,500][1080,700]">
+        <node class="android.widget.TextView" text="Save" bounds="[30,540][300,640]"/>
+      </node>
+    </node>
+  </node>
+</hierarchy>
+"""
+
+
+DESCENDANT_ACCESSIBILITY_LABEL = """<?xml version='1.0' encoding='UTF-8'?>
+<hierarchy>
+  <node class="android.widget.FrameLayout" package="com.android.settings" bounds="[0,0][1080,2400]">
+    <node class="android.widget.LinearLayout" clickable="true" bounds="[0,0][120,120]">
+      <node class="android.widget.ImageView" content-desc="Navigate up" bounds="[0,0][120,120]"/>
+    </node>
+  </node>
+</hierarchy>
+"""
+
+
+HINT_ONLY_FIELD = """<?xml version='1.0' encoding='UTF-8'?>
+<hierarchy>
+  <node class="android.widget.FrameLayout" package="com.example.compra" bounds="[0,0][1080,2400]">
+    <node class="android.widget.EditText" hint="¿Qué necesitas comprar?" clickable="true" focusable="true" bounds="[42,1900][1038,2100]"/>
   </node>
 </hierarchy>
 """
@@ -73,6 +111,24 @@ class ScreenSummaryTests(unittest.TestCase):
         search = next(a for a in self.summary["actions"] if a["label"] == "Search")
         self.assertEqual(search["selector"], {"resource_id": "com.android.settings:id/q"})
 
+    def test_descendant_accessibility_label_keeps_its_real_selector_kind(self) -> None:
+        """A parent button must not relabel a child accessibility node as text."""
+
+        actions = summarize_ui_tree(DESCENDANT_ACCESSIBILITY_LABEL)["actions"]
+
+        self.assertEqual(actions[0]["label"], "Navigate up")
+        self.assertEqual(actions[0]["selector"], {"content_desc": "Navigate up"})
+
+    def test_hint_only_field_is_offered_for_semantic_text_input(self) -> None:
+        """A field with no id or label must still be writable by its hint."""
+
+        actions = summarize_ui_tree(HINT_ONLY_FIELD)["actions"]
+
+        self.assertEqual(actions[0]["role"], "input")
+        self.assertEqual(
+            actions[0]["selector"], {"input_hint": "¿Qué necesitas comprar?"}
+        )
+
     def test_scrolling_is_a_screen_fact_not_a_fake_target(self) -> None:
         """ui.scroll takes no selector, so a scrollable is never offered as one."""
 
@@ -108,12 +164,53 @@ class EvidenceResourceTests(unittest.TestCase):
         ):
             with self.subTest(artifact_id=hostile), self.assertRaises(HarnessError) as raised:
                 read_artifact_bytes(hostile)
-            self.assertEqual(raised.exception.code.value, "EVIDENCE_WRITE_FAILED")
+        self.assertEqual(raised.exception.code.value, "EVIDENCE_WRITE_FAILED")
 
     def test_a_well_shaped_but_absent_identifier_is_refused(self) -> None:
         with self.assertRaises(HarnessError):
             read_artifact_bytes("20260101-000000-000000-screen.png")
 
+
+class ContextualSelectorTests(unittest.TestCase):
+    """Repeated labels become actionable only when the hierarchy proves context."""
+
+    def setUp(self) -> None:
+        self.actions = summarize_ui_tree(CONTEXTUAL_DUPLICATES)["actions"]
+
+    def test_summary_anchors_repeated_labels_by_unique_semantic_ancestor(self) -> None:
+        selectors = [action["selector"] for action in self.actions]
+
+        self.assertIn(
+            {"text": "Save", "within": {"content_desc": "Personal profile"}},
+            selectors,
+        )
+        self.assertIn(
+            {"text": "Save", "within": {"content_desc": "Work profile"}},
+            selectors,
+        )
+        self.assertTrue(all(action.get("disambiguated") for action in self.actions))
+        self.assertFalse(any(action.get("ambiguous") for action in self.actions))
+
+    def test_contextual_selector_is_accepted_and_becomes_ancestor_xpath(self) -> None:
+        from logica.navegacion.semantica import _locator
+
+        raw = {"text": "Save", "within": {"content_desc": "Personal profile"}}
+        selector = validate_selector(raw)
+        _, query = _locator(selector)
+
+        self.assertEqual(selector_mapping(selector), raw)
+        self.assertIn("@text='Save'", query)
+        self.assertIn("ancestor::*[@content-desc='Personal profile']", query)
+
+    def test_context_cannot_be_nested_or_replace_the_target(self) -> None:
+        invalid = (
+            {"within": {"text": "Profile"}},
+            {"text": "Save", "within": {"text": "Profile", "within": {"text": "Root"}}},
+        )
+        for raw in invalid:
+            with self.subTest(raw=raw), self.assertRaises(HarnessError) as raised:
+                validate_selector(raw)
+            self.assertEqual(raised.exception.code.value, "INVALID_SELECTOR")
 
 class LayoutAuditTests(unittest.TestCase):
     """Position is reported so layout can be checked, never so it can be aimed at."""
@@ -197,6 +294,30 @@ class InputHintLocatorTests(unittest.TestCase):
         """AppCompatEditText is still an edit text; demanding equality was a bug."""
 
         self.assertIn("string-length(@class) - 7) = 'EditText'", self.query)
+
+    def test_hint_attribute_falls_back_to_element_inspection_when_xpath_cannot_read_it(self) -> None:
+        """UiAutomator2 renders hint but does not always XPath-index it."""
+
+        from logica.navegacion.semantica import _find_input_hint
+
+        class Element:
+            def __init__(self, attributes: dict[str, str], children: list[object] | None = None) -> None:
+                self.attributes = attributes
+                self.children = children or []
+
+            def get_attribute(self, attribute: str) -> str:
+                return self.attributes.get(attribute, "")
+
+            def find_elements(self, _by: str, _query: str) -> list[object]:
+                return self.children
+
+        field = Element({"hint": "¿Qué necesitas comprar?"})
+
+        class Driver:
+            def find_elements(self, _by: str, _query: str) -> list[object]:
+                return [field]
+
+        self.assertIs(_find_input_hint(Driver(), "¿Qué necesitas"), field)
 
     def test_a_hostile_hint_stays_a_quoted_literal(self) -> None:
         from logica.navegacion.semantica import _locator

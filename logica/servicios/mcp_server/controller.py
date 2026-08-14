@@ -45,6 +45,7 @@ from logica.navegacion.semantica import (
 from logica.seguridad.emulador import assert_emulator_udid
 from logica.servicios.mcp_server.gate import EmulatorOperationGate
 from logica.sesiones.appium import close_driver, create_device_driver
+from logica.sesiones.flujo import UiFlowSessions
 from contratos.ui_control import (
     selector_mapping,
     validate_package_name,
@@ -68,17 +69,24 @@ class AndroidMcpController:
         self._config = config
         self._gate = gate or EmulatorOperationGate()
         self._density: int | None = None
+        self._flows = UiFlowSessions(
+            config.flow_idle_timeout_seconds, config.action_timeout_seconds
+        )
 
     async def get_emulator_status(self) -> dict[str, Any]:
         """Return read-only ADB and Appium status data."""
 
         return (await self._execute("emulator.get_status", self._read_status)).to_dict()
 
-    async def get_ui_tree(self, include_raw: object = False) -> dict[str, Any]:
+    async def get_ui_tree(
+        self, include_raw: object = False, session_id: object = None
+    ) -> dict[str, Any]:
         """Return a read-only, model-usable view of the current Android screen."""
 
         return (
-            await self._execute("ui.get_tree", lambda: self._read_tree(include_raw))
+            await self._execute(
+                "ui.get_tree", lambda: self._read_tree(include_raw, session_id)
+            )
         ).to_dict()
 
     async def capture_screen(self) -> dict[str, Any]:
@@ -90,6 +98,20 @@ class AndroidMcpController:
         """Navigate Settings to Apps under the single-operation gate."""
 
         return (await self._execute("settings.open_apps", self._open_settings_apps)).to_dict()
+
+    async def open_ui_session(self) -> dict[str, Any]:
+        """Reserve the emulator for an explicit chain of UI actions."""
+
+        return (await self._execute("ui.session.open", self._open_ui_session)).to_dict()
+
+    async def close_ui_session(self, session_id: object) -> dict[str, Any]:
+        """Release an explicit UI flow before its idle lease expires."""
+
+        return (
+            await self._execute(
+                "ui.session.close", lambda: self._close_ui_session(session_id)
+            )
+        ).to_dict()
 
     async def list_installed_apps(self) -> dict[str, Any]:
         """List installed package identifiers through the fixed ADB read adapter."""
@@ -105,33 +127,43 @@ class AndroidMcpController:
             )
         ).to_dict()
 
-    async def tap_ui(self, selector: object) -> dict[str, Any]:
+    async def tap_ui(
+        self, selector: object, session_id: object = None
+    ) -> dict[str, Any]:
         """Tap one semantic UI target and capture the result."""
 
         return (
-            await self._execute("ui.tap", lambda: self._tap_ui(selector))
+            await self._execute("ui.tap", lambda: self._tap_ui(selector, session_id))
         ).to_dict()
 
-    async def type_into_ui(self, selector: object, text: object) -> dict[str, Any]:
+    async def type_into_ui(
+        self, selector: object, text: object, session_id: object = None
+    ) -> dict[str, Any]:
         """Send validated text into one semantic UI target and capture the result."""
 
         return (
             await self._execute(
-                "ui.type_text", lambda: self._type_into_ui(selector, text)
+                "ui.type_text", lambda: self._type_into_ui(selector, text, session_id)
             )
         ).to_dict()
 
-    async def scroll_ui(self, direction: object) -> dict[str, Any]:
+    async def scroll_ui(
+        self, direction: object, session_id: object = None
+    ) -> dict[str, Any]:
         """Perform one normalized semantic scroll and capture the result."""
 
         return (
-            await self._execute("ui.scroll", lambda: self._scroll_ui(direction))
+            await self._execute(
+                "ui.scroll", lambda: self._scroll_ui(direction, session_id)
+            )
         ).to_dict()
 
-    async def go_back(self) -> dict[str, Any]:
+    async def go_back(self, session_id: object = None) -> dict[str, Any]:
         """Navigate Android Back once and capture the result."""
 
-        return (await self._execute("device.back", self._go_back)).to_dict()
+        return (
+            await self._execute("device.back", lambda: self._go_back(session_id))
+        ).to_dict()
 
     async def _execute(self, tool: str, action: ToolAction) -> McpToolResult:
         """Apply concurrency and typed-error policy around one declared tool."""
@@ -161,10 +193,21 @@ class AndroidMcpController:
         )
         return {**device, **appium}, None
 
-    async def _read_tree(self, include_raw: object = False) -> tuple[dict[str, Any], None]:
+    async def _read_tree(
+        self, include_raw: object = False, session_id: object = None
+    ) -> tuple[dict[str, Any], None]:
         """Read the screen and hand back what can be acted on, not the whole dump."""
 
-        raw = await asyncio.to_thread(read_ui_tree, self._config.udid)
+        if session_id is None:
+            raw = await asyncio.to_thread(read_ui_tree, self._config.udid)
+        else:
+            # A flow owns an Appium session precisely to keep intermediate UI
+            # state coherent.  Its page source is the authoritative snapshot
+            # after typing, rather than racing a second transport through ADB.
+            async with self._flows.use(session_id) as driver:
+                raw = await self._before_the_ceiling(
+                    asyncio.to_thread(lambda: str(driver.page_source))
+                )
         if self._density is None:
             # Density does not change while a device is up, so one read is enough
             # to express sizes in dp instead of meaningless pixels.
@@ -189,12 +232,30 @@ class AndroidMcpController:
     async def _open_settings_apps(self) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Run the already-proven Appium Settings flow in a worker thread."""
 
+        await self._flows.assert_idle()
         result = await asyncio.to_thread(run_settings_demo, self._config)
         evidence = self._artifact_reference(Path(result.screenshot_path)) if result.screenshot_path else None
         if not result.succeeded:
             code = McpErrorCode(result.error_code or McpErrorCode.INTERNAL_ERROR)
             raise HarnessError(code, result.detail)
         return {"screen_marker": result.detail}, evidence
+
+    async def _open_ui_session(self) -> tuple[dict[str, Any], None]:
+        """Create one lease whose driver is reused only by its opaque token."""
+
+        session_id = await self._flows.open(self._config)
+        return {
+            "session_id": session_id,
+            "idle_timeout_seconds": self._config.flow_idle_timeout_seconds,
+        }, None
+
+    async def _close_ui_session(
+        self, session_id: object
+    ) -> tuple[dict[str, Any], None]:
+        """Release the flow driver and return no host-specific state."""
+
+        await self._flows.close(session_id)
+        return {"closed": True}, None
 
     async def _list_installed_apps(self) -> tuple[dict[str, Any], None]:
         """Read available package identifiers without creating an Appium session."""
@@ -207,6 +268,7 @@ class AndroidMcpController:
     ) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Validate then activate one app through the transient Appium session."""
 
+        await self._flows.assert_idle()
         package = validate_package_name(package_name)
         launched = await asyncio.to_thread(launch_package, self._config.udid, package)
         await self._await_visible_package(launched)
@@ -246,7 +308,7 @@ class AndroidMcpController:
             await asyncio.sleep(0.5)
 
     async def _tap_ui(
-        self, raw_selector: object
+        self, raw_selector: object, session_id: object = None
     ) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Validate then tap the one requested semantic target."""
 
@@ -257,10 +319,11 @@ class AndroidMcpController:
                 "target": selector_mapping(selector),
                 "element_label": tap(driver, selector),
             },
+            session_id,
         )
 
     async def _type_into_ui(
-        self, raw_selector: object, raw_text: object
+        self, raw_selector: object, raw_text: object, session_id: object = None
     ) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Validate then send text into the requested semantic target."""
 
@@ -272,10 +335,11 @@ class AndroidMcpController:
                 "target": selector_mapping(selector),
                 "characters_sent": type_text(driver, selector, text),
             },
+            session_id,
         )
 
     async def _scroll_ui(
-        self, raw_direction: object
+        self, raw_direction: object, session_id: object = None
     ) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Validate direction then execute one trusted normalized scroll."""
 
@@ -283,40 +347,97 @@ class AndroidMcpController:
         return await self._run_ui_action(
             "ui-scroll",
             lambda driver: self._scroll_action(driver, direction),
+            session_id,
         )
 
-    async def _go_back(self) -> tuple[dict[str, Any], dict[str, str] | None]:
+    async def _go_back(
+        self, session_id: object = None
+    ) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Run one Back action through a transient Appium session."""
 
         return await self._run_ui_action(
-            "device-back", lambda driver: {"back_to_package": go_back(driver)}
+            "device-back",
+            lambda driver: {"back_to_package": go_back(driver)},
+            session_id,
         )
 
     async def _run_ui_action(
         self,
         evidence_label: str,
         action: Callable[[Any], dict[str, Any]],
+        session_id: object = None,
     ) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Own the session lifecycle and evidence policy for a single UI action."""
 
+        if session_id is not None:
+            async with self._flows.use(session_id) as driver:
+                return await self._run_driver_action(driver, evidence_label, action)
+
+        await self._flows.assert_idle()
         driver: Any | None = None
         try:
             driver = await asyncio.to_thread(create_device_driver, self._config)
-            data = await asyncio.to_thread(action, driver)
-            data["foreground_package"] = str(driver.current_package)
-            screenshot = await asyncio.to_thread(save_screenshot, driver, evidence_label)
+            return await self._run_driver_action(driver, evidence_label, action)
+        finally:
+            if driver is not None:
+                # Closing is a driver call too, and it runs holding the gate.
+                await self._before_the_ceiling(
+                    asyncio.to_thread(close_driver, driver)
+                )
+
+    async def _run_driver_action(
+        self,
+        driver: Any,
+        evidence_label: str,
+        action: Callable[[Any], dict[str, Any]],
+    ) -> tuple[dict[str, Any], dict[str, str] | None]:
+        """Execute against either a transient driver or an owned flow driver."""
+
+        try:
+            data = await self._before_the_ceiling(asyncio.to_thread(action, driver))
+            # Every one of these touches the driver while the gate is held, so
+            # every one is under the ceiling. This line used to be a plain
+            # synchronous call: a driver that stopped answering froze the whole
+            # event loop, which is worse than holding the gate, because then not
+            # even the ceiling could fire.
+            data["foreground_package"] = await self._before_the_ceiling(
+                asyncio.to_thread(lambda: str(driver.current_package))
+            )
+            screenshot = await self._before_the_ceiling(
+                asyncio.to_thread(save_screenshot, driver, evidence_label)
+            )
             return data, self._artifact_reference(screenshot)
+        except TimeoutError as exc:
+            # Deliberately not wrapped in failure evidence: the driver is the
+            # thing that stopped answering, so asking it for a screenshot would
+            # hang for a second time.
+            raise HarnessError(
+                McpErrorCode.OPERATION_TIMEOUT,
+                "The Android UI action did not finish within "
+                f"{self._config.action_timeout_seconds} s and was abandoned so the "
+                "emulator stays usable. Raise ANDROID_MCP_ACTION_TIMEOUT if the "
+                "device is simply slow.",
+            ) from exc
         except HarnessError as exc:
-            raise self._with_failure_evidence(exc, driver, evidence_label) from exc
+            raise await self._with_failure_evidence(exc, driver, evidence_label) from exc
         except Exception as exc:
             error = HarnessError(
                 McpErrorCode.INTERNAL_ERROR,
                 "The Android UI action failed unexpectedly; inspect local evidence and logs.",
             )
-            raise self._with_failure_evidence(error, driver, evidence_label) from exc
-        finally:
-            if driver is not None:
-                await asyncio.to_thread(close_driver, driver)
+            raise await self._with_failure_evidence(error, driver, evidence_label) from exc
+
+    async def _before_the_ceiling(self, work: Awaitable[Any]) -> Any:
+        """Stop waiting on a driver call that has stopped answering.
+
+        A worker thread cannot be killed, so the abandoned command keeps running
+        against a driver nobody will read again. That is accepted on purpose:
+        what matters is that the coroutine unwinds, the flow lease is voided and
+        the emulator lock is released, instead of one hung call freezing every
+        client until the process is restarted.
+        """
+
+        return await asyncio.wait_for(work, self._config.action_timeout_seconds)
 
     @staticmethod
     def _scroll_action(driver: Any, direction: str) -> dict[str, Any]:
@@ -325,18 +446,24 @@ class AndroidMcpController:
         scroll(driver, direction)
         return {"direction": direction}
 
-    def _with_failure_evidence(
+    async def _with_failure_evidence(
         self,
         error: HarnessError,
         driver: Any | None,
         label: str,
     ) -> HarnessError:
-        """Attach a best-effort local screenshot without hiding the original cause."""
+        """Attach a best-effort local screenshot without hiding the original cause.
+
+        Bounded like every other driver touch: proving what went wrong must never
+        become a second way to hang while holding the gate.
+        """
 
         if driver is None:
             return error
         try:
-            screenshot = save_screenshot(driver, f"failure-{label}")
+            screenshot = await self._before_the_ceiling(
+                asyncio.to_thread(save_screenshot, driver, f"failure-{label}")
+            )
             return HarnessError(error.code, error.message, self._artifact_reference(screenshot))
         except Exception:
             return error

@@ -94,7 +94,12 @@ def _role(node: element_tree.Element) -> str | None:
 
 
 def _own_label(node: element_tree.Element) -> str:
-    return (node.attrib.get("text") or node.attrib.get("content-desc") or "").strip()
+    return (
+        node.attrib.get("text")
+        or node.attrib.get("content-desc")
+        or node.attrib.get("hint")
+        or ""
+    ).strip()
 
 
 def _descendant_label(node: element_tree.Element) -> str:
@@ -112,18 +117,131 @@ def _descendant_label(node: element_tree.Element) -> str:
 def _candidate_selector(
     node: element_tree.Element, label: str
 ) -> tuple[dict[str, str], str] | None:
-    """Offer only selectors this server accepts, best identifier first."""
+    """Offer the strongest locator on an action or its visible child.
 
-    resource_id = (node.attrib.get("resource-id") or "").strip()
-    if resource_id:
-        return {"resource_id": resource_id}, resource_id
-    content_desc = (node.attrib.get("content-desc") or "").strip()
-    if content_desc:
-        return {"content_desc": content_desc}, content_desc
-    text = (node.attrib.get("text") or "").strip() or label
-    if text:
-        return {"text": text}, text
+    Android Settings sometimes puts clickability on a container but puts its
+    accessibility label on an ImageView below it.  Recasting that child label
+    as the container's ``text`` advertises a selector the locator cannot ever
+    resolve.  Keep the label's original attribute instead.
+    """
+
+    for candidate in node.iter():
+        if candidate is not node and not _visible(candidate):
+            continue
+        resource_id = (candidate.attrib.get("resource-id") or "").strip()
+        if resource_id:
+            return {"resource_id": resource_id}, resource_id
+        content_desc = (candidate.attrib.get("content-desc") or "").strip()
+        if content_desc:
+            return {"content_desc": content_desc}, content_desc
+        text = (candidate.attrib.get("text") or "").strip()
+        if text:
+            return {"text": text}, text
+        hint = (candidate.attrib.get("hint") or "").strip()
+        if hint:
+            return {"input_hint": hint}, hint
+
+    # ``label`` is only a presentation fallback.  It must not be turned into a
+    # selector after every real accessibility attribute was absent.
+    if label:
+        return {"text": label}, label
     return None
+
+
+def _selector_attribute(selector: dict[str, str]) -> str:
+    """Map public selector vocabulary back to the one XML attribute it reads."""
+
+    return {
+        "resource_id": "resource-id",
+        "content_desc": "content-desc",
+        "input_hint": "hint",
+    }.get(next(iter(selector)), "text")
+
+
+def _parents(root: element_tree.Element) -> dict[element_tree.Element, element_tree.Element]:
+    """ElementTree has no parent axis; retain it for semantic context discovery."""
+
+    return {child: parent for parent in root.iter() for child in parent}
+
+
+def _matches_selector(node: element_tree.Element, selector: dict[str, str]) -> bool:
+    """Match the exact XML field that the locator's basic selector will read."""
+
+    attribute = _selector_attribute(selector)
+    return (node.attrib.get(attribute) or "").strip() == next(iter(selector.values()))
+
+
+def _semantic_context(
+    node: element_tree.Element,
+    selector: dict[str, str],
+    nodes: list[element_tree.Element],
+    parents: dict[element_tree.Element, element_tree.Element],
+) -> dict[str, str] | None:
+    """Find an ancestor label that makes one repeated target uniquely reachable.
+
+    The selector points at the actual text/resource node, which may be a child
+    of the clickable row.  Context is therefore sought from every matching
+    target's ancestry, and emitted only when it leaves exactly one match.
+    """
+
+    targets = [candidate for candidate in nodes if _matches_selector(candidate, selector)]
+    represented = [
+        candidate
+        for candidate in targets
+        if candidate is node or node in parents and _is_ancestor(node, candidate, parents)
+    ]
+    for target in represented:
+        ancestor = parents.get(target)
+        while ancestor is not None:
+            for kind, attribute in (
+                ("resource_id", "resource-id"),
+                ("content_desc", "content-desc"),
+                ("text", "text"),
+                ("input_hint", "hint"),
+            ):
+                value = (ancestor.attrib.get(attribute) or "").strip()
+                if not value:
+                    continue
+                context = {kind: value}
+                matches = [
+                    candidate
+                    for candidate in targets
+                    if _has_ancestor(candidate, context, parents)
+                ]
+                if matches == [target]:
+                    return context
+            ancestor = parents.get(ancestor)
+    return None
+
+
+def _is_ancestor(
+    ancestor: element_tree.Element,
+    node: element_tree.Element,
+    parents: dict[element_tree.Element, element_tree.Element],
+) -> bool:
+    """Say whether a visible action contains the actual target node."""
+
+    current = parents.get(node)
+    while current is not None:
+        if current is ancestor:
+            return True
+        current = parents.get(current)
+    return False
+
+
+def _has_ancestor(
+    node: element_tree.Element,
+    context: dict[str, str],
+    parents: dict[element_tree.Element, element_tree.Element],
+) -> bool:
+    """Mirror the locator's ancestor axis using parsed Android XML."""
+
+    current = parents.get(node)
+    while current is not None:
+        if _matches_selector(current, context):
+            return True
+        current = parents.get(current)
+    return False
 
 
 def _layout_findings(
@@ -194,6 +312,7 @@ def summarize_ui_tree(
         ) from exc
 
     nodes = _elements(root)
+    parents = _parents(root)
     foreground = next(
         (node.attrib["package"] for node in nodes if node.attrib.get("package")), ""
     )
@@ -201,7 +320,7 @@ def summarize_ui_tree(
     # A selector that matches two things is a coin toss, so count first and say so.
     seen: Counter[str] = Counter()
     for node in nodes:
-        for attribute in ("resource-id", "content-desc", "text"):
+        for attribute in ("resource-id", "content-desc", "text", "hint"):
             value = (node.attrib.get(attribute) or "").strip()
             if value:
                 seen[f"{attribute}={value}"] += 1
@@ -221,9 +340,7 @@ def summarize_ui_tree(
         if resolved is None:
             continue
         selector, value = resolved
-        attribute = {"resource_id": "resource-id", "content_desc": "content-desc"}.get(
-            next(iter(selector)), "text"
-        )
+        attribute = _selector_attribute(selector)
         entry: dict[str, Any] = {
             "selector": selector,
             "label": label or _descendant_label(node) or value,
@@ -231,8 +348,13 @@ def summarize_ui_tree(
             "enabled": node.attrib.get("enabled", "true") == "true",
         }
         if seen[f"{attribute}={value}"] > 1:
-            # Better to admit the ambiguity than to let the caller tap blind.
-            entry["ambiguous"] = True
+            context = _semantic_context(node, selector, nodes, parents)
+            if context is None:
+                # Better to admit the ambiguity than to let the caller tap blind.
+                entry["ambiguous"] = True
+            else:
+                entry["selector"] = {**selector, "within": context}
+                entry["disambiguated"] = True
         rectangle = _rectangle(node)
         if rectangle is not None:
             # Position is reported so layout can be audited. It is never accepted

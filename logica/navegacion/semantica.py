@@ -42,13 +42,27 @@ def _xpath_literal(value: str) -> str:
 def _locator(selector: SemanticSelector) -> tuple[str, str]:
     """Translate one validated selector into an Appium locator pair."""
 
-    if selector.kind == "resource_id":
+    if selector.within is None and selector.kind == "resource_id":
         return AppiumBy.ID, selector.value
-    if selector.kind == "content_desc":
+    if selector.within is None and selector.kind == "content_desc":
         return AppiumBy.ACCESSIBILITY_ID, selector.value
+    target = _xpath_predicate(selector)
+    if selector.within is not None:
+        context = _xpath_predicate(selector.within)
+        return AppiumBy.XPATH, f"//*[{target} and ancestor::*[{context}]]"
+    return AppiumBy.XPATH, f"//*[{target}]"
+
+
+def _xpath_predicate(selector: SemanticSelector) -> str:
+    """Build a predicate only from validated semantic data, never caller XPath."""
+
     literal = _xpath_literal(selector.value)
+    if selector.kind == "resource_id":
+        return f"@resource-id={literal}"
+    if selector.kind == "content_desc":
+        return f"@content-desc={literal}"
     if selector.kind == "text":
-        return AppiumBy.XPATH, f"//*[@text={literal}]"
+        return f"@text={literal}"
     if selector.kind == "input_hint":
         # Two rules, both learned the hard way from a real screen.
         #
@@ -63,15 +77,14 @@ def _locator(selector: SemanticSelector) -> tuple[str, str]:
         # then says the door is not there.
         editable = "substring(@class, string-length(@class) - 7) = 'EditText'"
         return (
-            AppiumBy.XPATH,
-            f"//*[{editable} and ("
+            f"{editable} and ("
             f"contains(@hint, {literal})"
             f" or contains(@content-desc, {literal})"
             f" or contains(@text, {literal})"
             f" or .//*[contains(@content-desc, {literal})"
-            f" or contains(@text, {literal})])]",
+            f" or contains(@text, {literal})])"
         )
-    return AppiumBy.XPATH, f"//*[contains(@text, {literal})]"
+    return f"contains(@text, {literal})"
 
 
 def _offered_instead(driver: Any) -> str:
@@ -100,11 +113,35 @@ def _offered_instead(driver: Any) -> str:
     return f" The screen offers: {shown}{more}."
 
 
+def _find_input_hint(driver: Any, hint: str) -> Any | bool:
+    """Find an editable field even when UiAutomator2 cannot XPath its hint.
+
+    UiAutomator2 exposes ``hint`` in page source and through element attributes,
+    but its XPath engine does not necessarily index that attribute.  First find
+    only trusted EditText classes, then compare their observable attributes in
+    the local driver.  No caller-supplied XPath or position reaches Android.
+    """
+
+    editable = "//*[substring(@class, string-length(@class) - 7) = 'EditText']"
+    for element in driver.find_elements(AppiumBy.XPATH, editable):
+        candidates = [element, *element.find_elements(AppiumBy.XPATH, ".//*")]
+        for candidate in candidates:
+            for attribute in ("hint", "content-desc", "text"):
+                value = candidate.get_attribute(attribute) or ""
+                if hint in value:
+                    return element
+    return False
+
+
 def find_element(driver: Any, selector: SemanticSelector) -> Any:
     """Wait for exactly the declared semantic target, never a coordinate fallback."""
 
-    by, query = _locator(selector)
     try:
+        if selector.kind == "input_hint" and selector.within is None:
+            return WebDriverWait(driver, 10).until(
+                lambda active: _find_input_hint(active, selector.value)
+            )
+        by, query = _locator(selector)
         return WebDriverWait(driver, 10).until(
             lambda active: active.find_element(by, query)
         )
@@ -146,15 +183,29 @@ def type_text(driver: Any, selector: SemanticSelector, text: str) -> int:
 
 
 def scroll(driver: Any, direction: str) -> None:
-    """Perform one trusted normalized vertical gesture; no coordinates enter MCP."""
+    """Perform one trusted cardinal gesture; no coordinates enter MCP.
+
+    Directions describe where the content moves. Android receives the opposite
+    finger movement, fixed at the central half of the current display.
+    """
 
     size = driver.get_window_size()
     center_x = size["width"] // 2
+    center_y = size["height"] // 2
+    left_x = int(size["width"] * 0.25)
+    right_x = int(size["width"] * 0.75)
     upper_y = int(size["height"] * 0.25)
     lower_y = int(size["height"] * 0.75)
-    start_y, end_y = (lower_y, upper_y) if direction == "down" else (upper_y, lower_y)
+    if direction == "down":
+        start_x, start_y, end_x, end_y = center_x, lower_y, center_x, upper_y
+    elif direction == "up":
+        start_x, start_y, end_x, end_y = center_x, upper_y, center_x, lower_y
+    elif direction == "left":
+        start_x, start_y, end_x, end_y = left_x, center_y, right_x, center_y
+    else:
+        start_x, start_y, end_x, end_y = right_x, center_y, left_x, center_y
     try:
-        driver.swipe(center_x, start_y, center_x, end_y, duration=300)
+        driver.swipe(start_x, start_y, end_x, end_y, duration=300)
     except WebDriverException as exc:
         raise HarnessError(
             McpErrorCode.OPERATION_TIMEOUT,

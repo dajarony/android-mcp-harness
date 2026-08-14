@@ -1,0 +1,28 @@
+{
+  "package_name": "com.example.flutterapp",
+  "steps": [
+    {
+      "tool": "ui.tap",
+      "arguments": {
+        "selector": {
+          "text": "Search"
+        }
+      }
+    },
+    {
+      "tool": "ui.type_text",
+      "arguments": {
+        "selector": {
+          "input_hint": "Search"
+        },
+        "text": "hello"
+      }
+    },
+    {
+      "tool": "ui.scroll",
+      "arguments": {
+        "direction": "right"
+      }
+    }
+  ]
+}
