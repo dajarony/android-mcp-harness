@@ -140,10 +140,14 @@ def validate_text(text: object) -> str:
 def validate_scroll_direction(direction: object) -> str:
     """Accept one cardinal content movement, never caller-provided gesture data."""
 
-    if direction not in {"up", "down", "left", "right"}:
+    # 'left' and 'right' are implemented in the gesture layer but deliberately
+    # not published: no campaign measures them, because that needs an app with a
+    # carousel. A capability with no verifiable promise does not belong on the
+    # public surface, so it waits here until its oracle row exists.
+    if direction not in {"up", "down"}:
         raise HarnessError(
             McpErrorCode.INVALID_SCROLL_DIRECTION,
-            "direction must be exactly 'up', 'down', 'left' or 'right'.",
+            "direction must be exactly 'up' or 'down'.",
         )
     return str(direction)
 

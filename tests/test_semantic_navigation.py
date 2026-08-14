@@ -24,23 +24,30 @@ class _Driver:
 class ScrollDirectionTests(unittest.TestCase):
     """Client intent is cardinal; gesture geometry stays entirely server-owned."""
 
-    def test_all_four_cardinal_directions_are_accepted(self) -> None:
+    def test_only_the_published_directions_are_accepted(self) -> None:
         self.assertEqual(
-            [
-                validate_scroll_direction(value)
-                for value in ("up", "down", "left", "right")
-            ],
-            ["up", "down", "left", "right"],
+            [validate_scroll_direction(value) for value in ("up", "down")],
+            ["up", "down"],
         )
+
+    def test_horizontal_is_implemented_but_not_published(self) -> None:
+        """A capability with no campaign to measure it stays off the surface."""
+
+        for value in ("left", "right"):
+            with self.subTest(direction=value), self.assertRaises(HarnessError) as raised:
+                validate_scroll_direction(value)
+            self.assertEqual(raised.exception.code.value, "INVALID_SCROLL_DIRECTION")
 
     def test_non_cardinal_direction_is_rejected(self) -> None:
         with self.assertRaises(HarnessError) as raised:
             validate_scroll_direction("diagonal")
         self.assertEqual(raised.exception.code.value, "INVALID_SCROLL_DIRECTION")
 
-    def test_horizontal_content_directions_use_fixed_opposite_finger_swipes(
+    def test_the_horizontal_gesture_stays_correct_for_when_it_returns(
         self,
     ) -> None:
+        """Unpublished is not unwritten: the geometry keeps its regression."""
+
         expected = {
             "left": (270, 1200, 810, 1200, 300),
             "right": (810, 1200, 270, 1200, 300),

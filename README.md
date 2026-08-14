@@ -421,15 +421,22 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 - ⚠️ **El resumen es una opinión sobre la pantalla.** Marca lo ambiguo, pero un
   diseño que no expone ni texto, ni `content-desc`, ni `resource-id` sigue sin
   ser accionable por semántica — y eso es un problema de la app, no del arnés.
-- ✅ **`ui.scroll` cubre los cuatro sentidos cardinales.** `left` y `right`
-  sirven para carruseles; el cliente declara hacia dónde debe avanzar el
-  contenido y el servidor elige el gesto opuesto de tamaño fijo.
+- ⚠️ **`ui.scroll` solo publica `up` y `down`.** El gesto horizontal está escrito
+  y probado en la capa de navegación, pero no sale al catálogo: no hay campaña
+  que lo mida contra un carrusel real, y una capacidad sin promesa verificable no
+  pertenece a la superficie pública. Entra cuando exista su fila de oráculo.
 - ✅ **Las acciones pueden encadenarse de forma explícita.** `ui.session.open`
   devuelve un identificador opaco para `ui.tap`, `ui.type_text`, `ui.scroll` y
   `device.back`; la sesión caduca tras 60 s sin uso (configurable con
   `ANDROID_MCP_FLOW_IDLE_TIMEOUT`) y se puede liberar antes con
   `ui.session.close`. Sin ese identificador, cada acción conserva el cierre
   inmediato de sesión original.
+- ✅ **Una llamada colgada no puede bloquear a todos.** Pasados 90 s
+  (`ANDROID_MCP_ACTION_TIMEOUT`) el arnés deja de esperar, devuelve
+  `OPERATION_TIMEOUT`, anula el arriendo del flujo y suelta el emulador. Es un
+  techo de seguridad, no el presupuesto declarado de ≤30 s. El hilo abandonado
+  sigue corriendo hasta terminar solo: un hilo no se puede matar, y se dice en
+  vez de fingir lo contrario.
 - 🚫 **No integra agentes todavía.** Auralis, Trinidad y Glas serán *clientes*
   de esta frontera — nunca una ampliación de su autoridad.
 

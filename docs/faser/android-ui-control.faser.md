@@ -32,7 +32,9 @@ shell ni un UDID físico.
 - `app.open(package_name: str)`.
 - `ui.tap(selector: object)`.
 - `ui.type_text(selector: object, text: str)`.
-- `ui.scroll(direction: "up" | "down" | "left" | "right")`.
+- `ui.scroll(direction: "up" | "down")`. El gesto horizontal existe en la capa de
+  navegación pero no se publica: no hay campaña que lo mida, porque hace falta
+  una aplicación con carrusel. Entra cuando exista su fila de oráculo.
 - `device.back`: sin argumentos.
 
 `selector` contiene exactamente una de estas formas:
@@ -101,7 +103,7 @@ capturar y cerrar.
 
 ### Evento: `ui.scroll`
 
-**Condición:** dirección `up`, `down`, `left` o `right`.
+**Condición:** dirección `up` o `down`.
 
 **Acción:** ejecutar un gesto interno normalizado sobre la ventana actual. La
 dirección describe el movimiento del contenido; el servidor calcula el arrastre
@@ -129,7 +131,8 @@ cerrar.
 - Selector: una clave objetivo permitida, valor no vacío ≤256 caracteres y sin
   NUL; `within` es opcional, lleva una clave objetivo y no admite más anidación.
 - Texto: 1–512 caracteres, sin NUL.
-- Dirección: exactamente `up`, `down`, `left` o `right`.
+- Dirección: exactamente `up` o `down`. El gesto horizontal existe pero no se
+  publica hasta tener campaña que lo mida.
 - Una acción siempre se serializa mediante el gate.
 - Cada acción obtiene evidencia propia y cierra driver aunque falle.
 - Ninguna herramienta recibe ni ejecuta ADB shell arbitrario.
