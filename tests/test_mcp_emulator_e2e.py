@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import sys
+import subprocess
 import urllib.request
 import unittest
 import xml.etree.ElementTree as element_tree
@@ -24,6 +25,7 @@ from contratos.demo_settings import SettingsDemoConfig
 from contratos.ui_control import validate_selector
 from entradas.mcp.server import build_server
 from logica.navegacion.semantica import find_element
+from logica.infraestructura.adb import resolve_adb_path
 from logica.sesiones.appium import close_driver, create_device_driver
 
 
@@ -78,12 +80,46 @@ def visible_package(ui_tree: str) -> str:
     raise AssertionError("The UI tree did not name a visible package.")
 
 
+def reset_to_a_known_screen() -> None:
+    """Put Android back on the home screen with Settings not running.
+
+    One case used to be able to explain the next: a run that left the keyboard
+    up or the Settings search open changed what the following case found, and
+    FLOW-NAV-1 failed once for that reason and passed alone.
+
+    This only establishes a starting point. It navigates nothing the campaign is
+    meant to prove: `settings.open_apps` still has to reach Apps by itself, and
+    no promise is relaxed to accommodate a dirty screen. Doing it through ADB
+    rather than the harness is deliberate too — the fixture must not depend on
+    the very tools it is preparing the ground for.
+    """
+
+    adb = resolve_adb_path()
+    for arguments in (
+        ["shell", "input", "keyevent", "KEYCODE_HOME"],
+        ["shell", "am", "force-stop", "com.android.settings"],
+        # The search bar lives in a second package, and it is the one that was
+        # leaving a text field focused behind it.
+        ["shell", "am", "force-stop", "com.google.android.settings.intelligence"],
+    ):
+        subprocess.run(
+            [adb, "-s", "emulator-5554", *arguments],
+            check=False,
+            capture_output=True,
+            timeout=20,
+        )
+
+
 @unittest.skipUnless(
     RUN_EMULATOR_ECA,
     "Set ANDROID_MCP_RUN_EMULATOR=1 to run the disposable-emulator ECA campaign.",
 )
 class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
     """Verify the business promises of the MCP server against the real AVD."""
+
+    async def asyncSetUp(self) -> None:
+        await asyncio.to_thread(reset_to_a_known_screen)
+        await asyncio.sleep(1)
 
     async def test_observation_is_real_and_does_not_navigate(self) -> None:
         """INV-OBS-1: status, tree and capture leave the foreground UI unchanged."""
