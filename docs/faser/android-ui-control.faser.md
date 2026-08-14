@@ -23,7 +23,8 @@ shell ni un UDID físico.
 |---|---|---|---|
 | `activeOperation` | `bool`, `false` | `EmulatorOperationGate` | Solo una llamada sobre el emulador. |
 | `operationId` | UUID nuevo | `McpToolResult` | No reutilizable. |
-| `driver` | temporal / `null` | sesión Appium | Se cierra en `finally`. |
+| `driver` (acción suelta) | temporal / `null` | sesión Appium | Se abre para una acción y se cierra en `finally`. |
+| `driver` (flujo explícito) | vivo entre llamadas / `null` | `UiFlowSessions` | Sobrevive a propósito mientras el cliente encadena. **No** se cierra en `finally`: lo cierra `ui.session.close`, los 60 s de inactividad o el techo por acción al anular el arriendo. Nunca sin plazo. |
 | `evidencePath` | `str / null` | evidencia | Único y bajo `artifacts/`. |
 
 ## ENTRADAS
@@ -134,7 +135,14 @@ cerrar.
 - Dirección: exactamente `up` o `down`. El gesto horizontal existe pero no se
   publica hasta tener campaña que lo mida.
 - Una acción siempre se serializa mediante el gate.
-- Cada acción obtiene evidencia propia y cierra driver aunque falle.
+- Cada acción suelta obtiene evidencia propia y cierra su driver aunque falle.
+  Una acción de flujo obtiene evidencia igual, pero **no** cierra el driver: eso
+  es lo que la cadena viene a evitar.
+- Toda llamada al driver que se hace reteniendo el gate está acotada por el techo
+  por acción: la acción, la lectura del paquete en primer plano, la captura de
+  evidencia —también la de fallo—, la lectura del árbol de un flujo y el propio
+  cierre. Ninguna comprobación posterior a la acción queda fuera; si lo estuviera,
+  bastaría con que colgase para retener el emulador pese al techo.
 - Ninguna herramienta recibe ni ejecuta ADB shell arbitrario.
 - El UDID y el punto final de Appium se validan en el creador de sesión, embudo
   común de las seis acciones: un teléfono físico o un Appium remoto se rechazan

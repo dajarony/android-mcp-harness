@@ -42,8 +42,9 @@ class _ActiveUiFlow:
 class UiFlowSessions:
     """Keep at most one explicit, short-lived Appium session at a time."""
 
-    def __init__(self, idle_timeout_seconds: int) -> None:
+    def __init__(self, idle_timeout_seconds: int, close_timeout_seconds: int) -> None:
         self._idle_timeout_seconds = idle_timeout_seconds
+        self._close_timeout_seconds = close_timeout_seconds
         self._active: _ActiveUiFlow | None = None
         self._lock = asyncio.Lock()
         self._expiry_task: asyncio.Task[None] | None = None
@@ -164,4 +165,12 @@ class UiFlowSessions:
         if self._expiry_task is not None and self._expiry_task is not current:
             self._expiry_task.cancel()
         self._expiry_task = None
-        await asyncio.to_thread(close_driver, driver)
+        try:
+            # Closing runs while this lock is held. A driver that will not quit
+            # would otherwise keep the lease unreachable forever, so the wait is
+            # bounded and the slot is freed either way.
+            await asyncio.wait_for(
+                asyncio.to_thread(close_driver, driver), self._close_timeout_seconds
+            )
+        except TimeoutError:
+            pass

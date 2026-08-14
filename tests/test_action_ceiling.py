@@ -101,3 +101,100 @@ class ActionCeilingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(hung["error"]["code"], "OPERATION_TIMEOUT")
         self.assertEqual(reused["error"]["code"], "INVALID_UI_SESSION")
+
+
+class _HungAfterTheAction:
+    """A driver whose action succeeds and whose follow-up check never answers.
+
+    This is the shape that mattered: the tap works, and then reading the
+    foreground package hangs. That call used to run synchronously in the event
+    loop, so it froze everything — not merely the gate — and the ceiling could
+    not even fire.
+    """
+
+    def find_element(self, *_args: object) -> object:
+        return self
+
+    def get_attribute(self, _name: str) -> str:
+        return "Apps"
+
+    def click(self) -> None:
+        return None
+
+    @property
+    def current_package(self) -> str:
+        import time
+
+        time.sleep(3)
+        return "com.example.app"
+
+    def save_screenshot(self, _path: str) -> None:
+        return None
+
+    def quit(self) -> None:
+        return None
+
+
+class PostActionCeilingTests(unittest.IsolatedAsyncioTestCase):
+    """Everything that touches the driver while holding the gate is bounded."""
+
+    def _controller(self) -> AndroidMcpController:
+        return AndroidMcpController(CONFIG)
+
+    async def test_a_hung_follow_up_check_answers_operation_timeout(self) -> None:
+        with patch(
+            "logica.servicios.mcp_server.controller.create_device_driver",
+            return_value=_HungAfterTheAction(),
+        ), patch("logica.servicios.mcp_server.controller.close_driver"):
+            result = await self._controller().tap_ui({"text": "Apps"})
+
+        self.assertEqual(result["error"]["code"], "OPERATION_TIMEOUT")
+
+    async def test_it_releases_the_gate(self) -> None:
+        controller = self._controller()
+        with patch(
+            "logica.servicios.mcp_server.controller.create_device_driver",
+            return_value=_HungAfterTheAction(),
+        ), patch("logica.servicios.mcp_server.controller.close_driver"):
+            await controller.tap_ui({"text": "Apps"})
+            after = await controller.scroll_ui("sideways")
+
+        # Reaching validation proves the gate was not left held.
+        self.assertEqual(after["error"]["code"], "INVALID_SCROLL_DIRECTION")
+
+    async def test_it_invalidates_the_session_when_it_belonged_to_a_flow(self) -> None:
+        controller = self._controller()
+        with patch(
+            "logica.sesiones.flujo.create_device_driver",
+            return_value=_HungAfterTheAction(),
+        ), patch("logica.sesiones.flujo.close_driver"), patch(
+            "logica.servicios.mcp_server.controller.close_driver"
+        ):
+            opened = await controller.open_ui_session()
+            session_id = opened["data"]["session_id"]
+            hung = await controller.tap_ui({"text": "Apps"}, session_id)
+            reused = await controller.tap_ui({"text": "Apps"}, session_id)
+
+        self.assertEqual(hung["error"]["code"], "OPERATION_TIMEOUT")
+        self.assertEqual(reused["error"]["code"], "INVALID_UI_SESSION")
+
+    async def test_the_event_loop_keeps_running_while_it_hangs(self) -> None:
+        """The regression that names the real defect: this was a blocking call."""
+
+        ticks = 0
+
+        async def heartbeat() -> None:
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.05)
+                ticks += 1
+
+        beat = asyncio.create_task(heartbeat())
+        with patch(
+            "logica.servicios.mcp_server.controller.create_device_driver",
+            return_value=_HungAfterTheAction(),
+        ), patch("logica.servicios.mcp_server.controller.close_driver"):
+            await self._controller().tap_ui({"text": "Apps"})
+        beat.cancel()
+
+        self.assertGreater(ticks, 5, "the event loop was blocked by the driver call")

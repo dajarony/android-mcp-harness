@@ -20,7 +20,7 @@ class UiFlowSessionTests(unittest.IsolatedAsyncioTestCase):
         with patch("logica.sesiones.flujo.create_device_driver", return_value=driver), patch(
             "logica.sesiones.flujo.close_driver"
         ) as close_driver:
-            flows = UiFlowSessions(60)
+            flows = UiFlowSessions(60, 90)
             session_id = await flows.open(CONFIG)
 
             async with flows.use(session_id) as borrowed:
@@ -35,7 +35,7 @@ class UiFlowSessionTests(unittest.IsolatedAsyncioTestCase):
         with patch("logica.sesiones.flujo.create_device_driver", return_value=object()) as create_driver, patch(
             "logica.sesiones.flujo.close_driver"
         ):
-            flows = UiFlowSessions(60)
+            flows = UiFlowSessions(60, 90)
             session_id = await flows.open(CONFIG)
             with self.assertRaises(HarnessError) as raised:
                 await flows.open(CONFIG)
@@ -51,7 +51,7 @@ class UiFlowSessionTests(unittest.IsolatedAsyncioTestCase):
             "logica.sesiones.flujo.create_device_driver",
             side_effect=[first_driver, second_driver],
         ), patch("logica.sesiones.flujo.close_driver") as close_driver:
-            flows = UiFlowSessions(60)
+            flows = UiFlowSessions(60, 90)
             await flows.open(CONFIG)
             assert flows._active is not None
             flows._active.expires_at = monotonic() - 1
@@ -68,7 +68,7 @@ class UiFlowSessionTests(unittest.IsolatedAsyncioTestCase):
         with patch("logica.sesiones.flujo.create_device_driver", return_value=object()), patch(
             "logica.sesiones.flujo.close_driver"
         ):
-            flows = UiFlowSessions(60)
+            flows = UiFlowSessions(60, 90)
             session_id = await flows.open(CONFIG)
             wrong_id = "x" * len(session_id)
 

@@ -69,7 +69,9 @@ class AndroidMcpController:
         self._config = config
         self._gate = gate or EmulatorOperationGate()
         self._density: int | None = None
-        self._flows = UiFlowSessions(config.flow_idle_timeout_seconds)
+        self._flows = UiFlowSessions(
+            config.flow_idle_timeout_seconds, config.action_timeout_seconds
+        )
 
     async def get_emulator_status(self) -> dict[str, Any]:
         """Return read-only ADB and Appium status data."""
@@ -203,7 +205,9 @@ class AndroidMcpController:
             # state coherent.  Its page source is the authoritative snapshot
             # after typing, rather than racing a second transport through ADB.
             async with self._flows.use(session_id) as driver:
-                raw = await asyncio.to_thread(lambda: str(driver.page_source))
+                raw = await self._before_the_ceiling(
+                    asyncio.to_thread(lambda: str(driver.page_source))
+                )
         if self._density is None:
             # Density does not change while a device is up, so one read is enough
             # to express sizes in dp instead of meaningless pixels.
@@ -376,7 +380,10 @@ class AndroidMcpController:
             return await self._run_driver_action(driver, evidence_label, action)
         finally:
             if driver is not None:
-                await asyncio.to_thread(close_driver, driver)
+                # Closing is a driver call too, and it runs holding the gate.
+                await self._before_the_ceiling(
+                    asyncio.to_thread(close_driver, driver)
+                )
 
     async def _run_driver_action(
         self,
@@ -388,7 +395,14 @@ class AndroidMcpController:
 
         try:
             data = await self._before_the_ceiling(asyncio.to_thread(action, driver))
-            data["foreground_package"] = str(driver.current_package)
+            # Every one of these touches the driver while the gate is held, so
+            # every one is under the ceiling. This line used to be a plain
+            # synchronous call: a driver that stopped answering froze the whole
+            # event loop, which is worse than holding the gate, because then not
+            # even the ceiling could fire.
+            data["foreground_package"] = await self._before_the_ceiling(
+                asyncio.to_thread(lambda: str(driver.current_package))
+            )
             screenshot = await self._before_the_ceiling(
                 asyncio.to_thread(save_screenshot, driver, evidence_label)
             )
@@ -405,13 +419,13 @@ class AndroidMcpController:
                 "device is simply slow.",
             ) from exc
         except HarnessError as exc:
-            raise self._with_failure_evidence(exc, driver, evidence_label) from exc
+            raise await self._with_failure_evidence(exc, driver, evidence_label) from exc
         except Exception as exc:
             error = HarnessError(
                 McpErrorCode.INTERNAL_ERROR,
                 "The Android UI action failed unexpectedly; inspect local evidence and logs.",
             )
-            raise self._with_failure_evidence(error, driver, evidence_label) from exc
+            raise await self._with_failure_evidence(error, driver, evidence_label) from exc
 
     async def _before_the_ceiling(self, work: Awaitable[Any]) -> Any:
         """Stop waiting on a driver call that has stopped answering.
@@ -432,18 +446,24 @@ class AndroidMcpController:
         scroll(driver, direction)
         return {"direction": direction}
 
-    def _with_failure_evidence(
+    async def _with_failure_evidence(
         self,
         error: HarnessError,
         driver: Any | None,
         label: str,
     ) -> HarnessError:
-        """Attach a best-effort local screenshot without hiding the original cause."""
+        """Attach a best-effort local screenshot without hiding the original cause.
+
+        Bounded like every other driver touch: proving what went wrong must never
+        become a second way to hang while holding the gate.
+        """
 
         if driver is None:
             return error
         try:
-            screenshot = save_screenshot(driver, f"failure-{label}")
+            screenshot = await self._before_the_ceiling(
+                asyncio.to_thread(save_screenshot, driver, f"failure-{label}")
+            )
             return HarnessError(error.code, error.message, self._artifact_reference(screenshot))
         except Exception:
             return error
