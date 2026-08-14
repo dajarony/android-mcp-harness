@@ -278,7 +278,9 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
                         },
                     )
                 )
-                tree = structured_payload(await client.call_tool("ui.get_tree"))
+                tree = structured_payload(
+                    await client.call_tool("ui.get_tree", {"session_id": session_id})
+                )
             finally:
                 closed = structured_payload(
                     await client.call_tool("ui.session.close", {"session_id": session_id})
@@ -287,6 +289,7 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(opened["ok"], opened.get("error"))
         self.assertTrue(tapped["ok"], tapped.get("error"))
         self.assertTrue(typed["ok"], typed.get("error"))
+        self.assertTrue(tree["ok"], tree.get("error"))
         self.assertTrue(closed["ok"], closed.get("error"))
         self.assertEqual(typed["data"]["characters_sent"], 4)
         self.assertTrue(any("Apps" in text for text in tree["data"]["texts"]))

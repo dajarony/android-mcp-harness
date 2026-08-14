@@ -76,11 +76,15 @@ class AndroidMcpController:
 
         return (await self._execute("emulator.get_status", self._read_status)).to_dict()
 
-    async def get_ui_tree(self, include_raw: object = False) -> dict[str, Any]:
+    async def get_ui_tree(
+        self, include_raw: object = False, session_id: object = None
+    ) -> dict[str, Any]:
         """Return a read-only, model-usable view of the current Android screen."""
 
         return (
-            await self._execute("ui.get_tree", lambda: self._read_tree(include_raw))
+            await self._execute(
+                "ui.get_tree", lambda: self._read_tree(include_raw, session_id)
+            )
         ).to_dict()
 
     async def capture_screen(self) -> dict[str, Any]:
@@ -187,10 +191,19 @@ class AndroidMcpController:
         )
         return {**device, **appium}, None
 
-    async def _read_tree(self, include_raw: object = False) -> tuple[dict[str, Any], None]:
+    async def _read_tree(
+        self, include_raw: object = False, session_id: object = None
+    ) -> tuple[dict[str, Any], None]:
         """Read the screen and hand back what can be acted on, not the whole dump."""
 
-        raw = await asyncio.to_thread(read_ui_tree, self._config.udid)
+        if session_id is None:
+            raw = await asyncio.to_thread(read_ui_tree, self._config.udid)
+        else:
+            # A flow owns an Appium session precisely to keep intermediate UI
+            # state coherent.  Its page source is the authoritative snapshot
+            # after typing, rather than racing a second transport through ADB.
+            async with self._flows.use(session_id) as driver:
+                raw = await asyncio.to_thread(lambda: str(driver.page_source))
         if self._density is None:
             # Density does not change while a device is up, so one read is enough
             # to express sizes in dp instead of meaningless pixels.

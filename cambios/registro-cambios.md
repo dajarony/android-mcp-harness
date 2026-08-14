@@ -298,6 +298,36 @@
 
 ---
 
+## 2026-08-14 — Selectores y observación de flujo verificados en Android 16
+
+**Archivos afectados:**
+
+- Actualizados el resumen semántico, el controlador MCP, su entrada, contratos
+  FASER, README y regresiones.
+
+**Motivo:**
+
+- La campaña ECA real encontró tres botones de Settings anunciados por texto
+  aunque sus etiquetas vivían en hijos `content-desc`; además, una lectura tras
+  escribir dentro de un flujo debía observar el mismo driver que preserva ese
+  estado.
+
+**Corrección:**
+
+- El resumen conserva el atributo real del descendiente accesible en vez de
+  convertirlo en `text`. `ui.get_tree(session_id?)` reutiliza el `page_source`
+  del flujo propietario cuando se solicita una instantánea intermedia.
+
+**Verificación:**
+
+- ECA contra Android 16 + Appium: 10/10 casos aplicables correctos; el caso de
+  app objetivo queda omitido hasta instalar un APK. Banco unitario: 102 pruebas
+  correctas.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
 ## 2026-08-14 — Desambiguación por contexto semántico
 
 **Archivos afectados:**

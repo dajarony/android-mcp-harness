@@ -13,8 +13,15 @@ class FakeMcpController:
     async def get_emulator_status(self) -> dict[str, object]:
         return {"ok": True, "tool": "emulator.get_status"}
 
-    async def get_ui_tree(self) -> dict[str, object]:
-        return {"ok": True, "tool": "ui.get_tree"}
+    async def get_ui_tree(
+        self, include_raw: object = False, session_id: object = None
+    ) -> dict[str, object]:
+        return {
+            "ok": True,
+            "tool": "ui.get_tree",
+            "include_raw": include_raw,
+            "session_id": session_id,
+        }
 
     async def capture_screen(self) -> dict[str, object]:
         return {"ok": True, "tool": "screen.capture"}
@@ -80,6 +87,25 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             result.structured_content,
             {"ok": True, "tool": "emulator.get_status"},
+        )
+
+    async def test_tree_can_read_the_owned_flow_snapshot(self) -> None:
+        """A flow token lets observation stay on the same Appium session."""
+
+        async with Client(build_server(FakeMcpController())) as client:
+            result = await client.call_tool(
+                "ui.get_tree", {"session_id": "flow-opaque-token"}
+            )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(
+            result.structured_content,
+            {
+                "ok": True,
+                "tool": "ui.get_tree",
+                "include_raw": False,
+                "session_id": "flow-opaque-token",
+            },
         )
 
     async def test_action_arguments_reach_only_the_matching_controller_method(self) -> None:

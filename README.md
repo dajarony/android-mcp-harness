@@ -44,7 +44,7 @@ Doce herramientas. Ni una más de las declaradas.
 | Herramienta | Parámetros | Devuelve |
 |---|---|---|
 | `emulator.get_status` | — | UDID, versión de Android, modelo y versión de Appium |
-| `ui.get_tree` | `include_raw?` | Lo que la pantalla **dice** y lo que se puede **pulsar**, con el selector de cada objetivo |
+| `ui.get_tree` | `include_raw?`, `session_id?` | Lo que la pantalla **dice** y lo que se puede **pulsar**, con el selector de cada objetivo |
 | `screen.capture` | — | PNG en `artifacts/` + su `artifact_id` y su `uri` legible |
 | `app.list_installed` | — | Identificadores de paquete instalados |
 

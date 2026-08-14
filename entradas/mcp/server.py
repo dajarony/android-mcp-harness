@@ -55,14 +55,17 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
         return await active_controller.get_emulator_status()
 
     @server.tool(name="ui.get_tree")
-    async def ui_get_tree(include_raw: bool = False) -> dict[str, Any]:
+    async def ui_get_tree(
+        include_raw: bool = False, session_id: str | None = None
+    ) -> dict[str, Any]:
         """List what the current Android screen says and what can be acted on.
 
         Every returned selector is one this server accepts for ui.tap and
-        ui.type_text. Set include_raw to also receive the full XML dump.
+        ui.type_text. Pass an active session_id to observe its coherent
+        intermediate state. Set include_raw to also receive the full XML dump.
         """
 
-        return await active_controller.get_ui_tree(include_raw)
+        return await active_controller.get_ui_tree(include_raw, session_id)
 
     @server.tool(name="screen.capture")
     async def screen_capture() -> dict[str, Any]:

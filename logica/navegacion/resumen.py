@@ -112,17 +112,31 @@ def _descendant_label(node: element_tree.Element) -> str:
 def _candidate_selector(
     node: element_tree.Element, label: str
 ) -> tuple[dict[str, str], str] | None:
-    """Offer only selectors this server accepts, best identifier first."""
+    """Offer the strongest locator on an action or its visible child.
 
-    resource_id = (node.attrib.get("resource-id") or "").strip()
-    if resource_id:
-        return {"resource_id": resource_id}, resource_id
-    content_desc = (node.attrib.get("content-desc") or "").strip()
-    if content_desc:
-        return {"content_desc": content_desc}, content_desc
-    text = (node.attrib.get("text") or "").strip() or label
-    if text:
-        return {"text": text}, text
+    Android Settings sometimes puts clickability on a container but puts its
+    accessibility label on an ImageView below it.  Recasting that child label
+    as the container's ``text`` advertises a selector the locator cannot ever
+    resolve.  Keep the label's original attribute instead.
+    """
+
+    for candidate in node.iter():
+        if candidate is not node and not _visible(candidate):
+            continue
+        resource_id = (candidate.attrib.get("resource-id") or "").strip()
+        if resource_id:
+            return {"resource_id": resource_id}, resource_id
+        content_desc = (candidate.attrib.get("content-desc") or "").strip()
+        if content_desc:
+            return {"content_desc": content_desc}, content_desc
+        text = (candidate.attrib.get("text") or "").strip()
+        if text:
+            return {"text": text}, text
+
+    # ``label`` is only a presentation fallback.  It must not be turned into a
+    # selector after every real accessibility attribute was absent.
+    if label:
+        return {"text": label}, label
     return None
 
 

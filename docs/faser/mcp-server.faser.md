@@ -44,7 +44,8 @@ mientras su `session_id` opaco se renueva; caduca y se cierra tras 60 s sin uso.
 
 - `tools/list`: catálogo MCP sin parámetros.
 - `emulator.get_status`: lectura de ADB y salud de Appium.
-- `ui.get_tree`: lectura del árbol de accesibilidad/UI.
+- `ui.get_tree(include_raw?, session_id?)`: lectura del árbol de accesibilidad/UI;
+  con token, observa el estado intermedio de ese flujo Appium.
 - `screen.capture`: captura local de la pantalla actual.
 - `app.list_installed`: lectura de paquetes instalados.
 - `settings.open_apps`: navegación declarada de Ajustes a Apps.
@@ -113,12 +114,14 @@ interno ni arranque de procesos.
 
 ### Evento: `ui.get_tree`
 
-**Condición:** emulador disponible; no hay navegación activa. No requiere
-Appium: va por ADB de solo lectura.
+**Condición:** emulador disponible. Sin token, no hay flujo UI activo y la
+lectura no requiere Appium. Con `session_id`, el token debe pertenecer al flujo
+activo.
 
-**Acción:** ejecutar la consulta ADB fija y de solo lectura `uiautomator dump`,
-extraer el XML y reducirlo a lo que se puede leer y a lo que se puede accionar.
-No abre sesión Appium.
+**Acción:** sin token, ejecutar la consulta ADB fija y de solo lectura
+`uiautomator dump`. Con token, reutilizar el `page_source` del driver que posee
+el flujo. En ambos casos reducir el XML a lo que se puede leer y accionar; la
+lectura nunca abre una segunda sesión Appium.
 
 **Resultado:** `foreground_package`, `texts` con lo que dice la pantalla,
 `actions` con un objetivo por entrada y `can_scroll`. Cada acción trae el

@@ -54,6 +54,17 @@ CONTEXTUAL_DUPLICATES = """<?xml version='1.0' encoding='UTF-8'?>
 """
 
 
+DESCENDANT_ACCESSIBILITY_LABEL = """<?xml version='1.0' encoding='UTF-8'?>
+<hierarchy>
+  <node class="android.widget.FrameLayout" package="com.android.settings" bounds="[0,0][1080,2400]">
+    <node class="android.widget.LinearLayout" clickable="true" bounds="[0,0][120,120]">
+      <node class="android.widget.ImageView" content-desc="Navigate up" bounds="[0,0][120,120]"/>
+    </node>
+  </node>
+</hierarchy>
+"""
+
+
 class ScreenSummaryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.summary = summarize_ui_tree(SCREEN)
@@ -90,6 +101,14 @@ class ScreenSummaryTests(unittest.TestCase):
     def test_a_resource_id_wins_over_weaker_identifiers(self) -> None:
         search = next(a for a in self.summary["actions"] if a["label"] == "Search")
         self.assertEqual(search["selector"], {"resource_id": "com.android.settings:id/q"})
+
+    def test_descendant_accessibility_label_keeps_its_real_selector_kind(self) -> None:
+        """A parent button must not relabel a child accessibility node as text."""
+
+        actions = summarize_ui_tree(DESCENDANT_ACCESSIBILITY_LABEL)["actions"]
+
+        self.assertEqual(actions[0]["label"], "Navigate up")
+        self.assertEqual(actions[0]["selector"], {"content_desc": "Navigate up"})
 
     def test_scrolling_is_a_screen_fact_not_a_fake_target(self) -> None:
         """ui.scroll takes no selector, so a scrollable is never offered as one."""
