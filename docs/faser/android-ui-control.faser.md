@@ -27,6 +27,24 @@ shell ni un UDID físico.
 | `driver` (flujo explícito) | vivo entre llamadas / `null` | `UiFlowSessions` | Sobrevive a propósito mientras el cliente encadena. **No** se cierra en `finally`: lo cierra `ui.session.close`, los 60 s de inactividad o el techo por acción al anular el arriendo. Nunca sin plazo. |
 | `evidencePath` | `str / null` | evidencia | Único y bajo `artifacts/`. |
 
+## FRONTERAS INTERNAS IMPLEMENTADAS
+
+La superficie MCP sigue siendo una sola, pero su implementación se divide por
+responsabilidad para que una modificación de XML, selección o Appium no altere
+las demás:
+
+| Módulo | Responsabilidad | No hace |
+|---|---|---|
+| `navegacion/arbol.py` | Lee nodos visibles, atributos y ancestros del XML. | Elegir objetivos ni pulsar. |
+| `navegacion/objetivos.py` | Deriva rol, selector y contexto `within`. | Interpretar geometría ni tocar Appium. |
+| `navegacion/maqueta.py` | Audita bounds, teclado y defectos de maqueta. | Publicar selectores ni navegar. |
+| `navegacion/resumen.py` | Compone las tres piezas en el resumen público. | Parsear reglas propias adicionales. |
+| `mcp_server/controller.py` | Valida entradas y coordina las doce herramientas. | Ejecutar directamente llamadas Appium de UI. |
+| `mcp_server/ejecutor_ui.py` | Gestiona driver, techo, evidencia y cierre. | Decidir qué selector acepta el contrato. |
+
+Esta separación es interna: no modifica nombres de herramientas, selectores ni
+forma de `McpToolResult`.
+
 ## ENTRADAS
 
 - `app.list_installed`: sin argumentos.
