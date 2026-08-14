@@ -46,11 +46,20 @@ class SemanticSelector:
     value: str
 
 
-def carries_control_characters(value: str) -> bool:
-    """Report text that would act on the device instead of being typed into it."""
+def carries_control_characters(value: str, *, allow_line_breaks: bool = False) -> bool:
+    """Report text that would act on the device instead of being typed into it.
 
+    Line breaks are an action inside a text field and plain content inside a
+    label: Flutter merges a widget's texts into one description joined by
+    newlines, so `Historial\\nTab 2 of 3` is what the screen genuinely calls that
+    tab. Refusing it in a selector made this harness unable to touch the tabs of
+    a real app while its own summary was offering them.
+    """
+
+    allowed = {"\n", "\r", "\t"} if allow_line_breaks else set()
     return any(
-        character < " " or character == "\x7f" or character in _BIDI_OVERRIDES
+        character not in allowed
+        and (character < " " or character == "\x7f" or character in _BIDI_OVERRIDES)
         for character in value
     )
 
@@ -86,11 +95,12 @@ def validate_selector(raw_selector: object) -> SemanticSelector:
         not isinstance(value, str)
         or not value.strip()
         or len(value) > 256
-        or carries_control_characters(value)
+        or carries_control_characters(value, allow_line_breaks=True)
     ):
         raise HarnessError(
             McpErrorCode.INVALID_SELECTOR,
-            "selector value must be nonempty, at most 256 characters and free of control characters.",
+            "selector value must be nonempty, at most 256 characters and free of "
+            "control characters other than line breaks and tabs.",
         )
     return SemanticSelector(kind, value)
 

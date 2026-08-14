@@ -91,8 +91,20 @@ class ControlCharacterTests(unittest.TestCase):
                 validate_text(hostile)
             self.assertEqual(raised.exception.code.value, "INVALID_TEXT")
 
+    def test_a_label_may_contain_the_line_breaks_flutter_puts_in_it(self) -> None:
+        """Flutter merges a widget's texts into one description joined by newlines.
+
+        Refusing that left the harness unable to tap the tabs of a real app while
+        its own summary was offering them as targets. A newline is an action
+        inside a field and ordinary content inside a label.
+        """
+
+        selector = validate_selector({"content_desc": "Historial\nTab 2 of 3"})
+
+        self.assertEqual(selector.value, "Historial\nTab 2 of 3")
+
     def test_selector_rejects_control_characters_and_bidi_overrides(self) -> None:
-        for hostile in ("Apps\n", "Apps\r", "Apps\x1b", "Apps\u202e"):
+        for hostile in ("Apps\x1b", "Apps\u202e", "Apps\x00", "Apps\x7f"):
             with self.subTest(value=repr(hostile)), self.assertRaises(HarnessError) as raised:
                 validate_selector({"text": hostile})
             self.assertEqual(raised.exception.code.value, "INVALID_SELECTOR")
