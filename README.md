@@ -423,4 +423,4 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 
 ## Licencia
 
-ISC.
+MIT.
