@@ -34,6 +34,9 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
             appium_url=os.getenv("APPIUM_URL", "http://127.0.0.1:4723"),
             udid=os.getenv("ANDROID_UDID", "emulator-5554"),
             connect_timeout_seconds=int(os.getenv("ANDROID_MCP_CONNECT_TIMEOUT", "120")),
+            flow_idle_timeout_seconds=int(
+                os.getenv("ANDROID_MCP_FLOW_IDLE_TIMEOUT", "60")
+            ),
         )
     )
     server = MCPServer(
@@ -73,6 +76,18 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
 
         return await active_controller.open_settings_apps()
 
+    @server.tool(name="ui.session.open")
+    async def ui_session_open() -> dict[str, Any]:
+        """Open a short-lived exclusive UI flow for chained semantic actions."""
+
+        return await active_controller.open_ui_session()
+
+    @server.tool(name="ui.session.close")
+    async def ui_session_close(session_id: str) -> dict[str, Any]:
+        """Close the UI flow identified by the opaque token from ui.session.open."""
+
+        return await active_controller.close_ui_session(session_id)
+
     @server.tool(name="app.list_installed")
     async def app_list_installed() -> dict[str, Any]:
         """List package identifiers installed in the configured emulator only."""
@@ -86,28 +101,34 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
         return await active_controller.open_app(package_name)
 
     @server.tool(name="ui.tap")
-    async def ui_tap(selector: dict[str, str]) -> dict[str, Any]:
+    async def ui_tap(
+        selector: dict[str, Any], session_id: str | None = None
+    ) -> dict[str, Any]:
         """Tap one UI target selected by text, resource id or accessibility label."""
 
-        return await active_controller.tap_ui(selector)
+        return await active_controller.tap_ui(selector, session_id)
 
     @server.tool(name="ui.type_text")
-    async def ui_type_text(selector: dict[str, str], text: str) -> dict[str, Any]:
+    async def ui_type_text(
+        selector: dict[str, Any], text: str, session_id: str | None = None
+    ) -> dict[str, Any]:
         """Type bounded text into one semantic Android UI target."""
 
-        return await active_controller.type_into_ui(selector, text)
+        return await active_controller.type_into_ui(selector, text, session_id)
 
     @server.tool(name="ui.scroll")
-    async def ui_scroll(direction: str) -> dict[str, Any]:
+    async def ui_scroll(
+        direction: str, session_id: str | None = None
+    ) -> dict[str, Any]:
         """Scroll the current screen once using a trusted normalized gesture."""
 
-        return await active_controller.scroll_ui(direction)
+        return await active_controller.scroll_ui(direction, session_id)
 
     @server.tool(name="device.back")
-    async def device_back() -> dict[str, Any]:
+    async def device_back(session_id: str | None = None) -> dict[str, Any]:
         """Perform one Android Back navigation on the configured emulator."""
 
-        return await active_controller.go_back()
+        return await active_controller.go_back(session_id)
 
     @server.resource(
         "artifact://{artifact_id}",

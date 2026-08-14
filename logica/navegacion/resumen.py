@@ -126,6 +126,100 @@ def _candidate_selector(
     return None
 
 
+def _selector_attribute(selector: dict[str, str]) -> str:
+    """Map public selector vocabulary back to the one XML attribute it reads."""
+
+    return {
+        "resource_id": "resource-id",
+        "content_desc": "content-desc",
+    }.get(next(iter(selector)), "text")
+
+
+def _parents(root: element_tree.Element) -> dict[element_tree.Element, element_tree.Element]:
+    """ElementTree has no parent axis; retain it for semantic context discovery."""
+
+    return {child: parent for parent in root.iter() for child in parent}
+
+
+def _matches_selector(node: element_tree.Element, selector: dict[str, str]) -> bool:
+    """Match the exact XML field that the locator's basic selector will read."""
+
+    attribute = _selector_attribute(selector)
+    return (node.attrib.get(attribute) or "").strip() == next(iter(selector.values()))
+
+
+def _semantic_context(
+    node: element_tree.Element,
+    selector: dict[str, str],
+    nodes: list[element_tree.Element],
+    parents: dict[element_tree.Element, element_tree.Element],
+) -> dict[str, str] | None:
+    """Find an ancestor label that makes one repeated target uniquely reachable.
+
+    The selector points at the actual text/resource node, which may be a child
+    of the clickable row.  Context is therefore sought from every matching
+    target's ancestry, and emitted only when it leaves exactly one match.
+    """
+
+    targets = [candidate for candidate in nodes if _matches_selector(candidate, selector)]
+    represented = [
+        candidate
+        for candidate in targets
+        if candidate is node or node in parents and _is_ancestor(node, candidate, parents)
+    ]
+    for target in represented:
+        ancestor = parents.get(target)
+        while ancestor is not None:
+            for kind, attribute in (
+                ("resource_id", "resource-id"),
+                ("content_desc", "content-desc"),
+                ("text", "text"),
+            ):
+                value = (ancestor.attrib.get(attribute) or "").strip()
+                if not value:
+                    continue
+                context = {kind: value}
+                matches = [
+                    candidate
+                    for candidate in targets
+                    if _has_ancestor(candidate, context, parents)
+                ]
+                if matches == [target]:
+                    return context
+            ancestor = parents.get(ancestor)
+    return None
+
+
+def _is_ancestor(
+    ancestor: element_tree.Element,
+    node: element_tree.Element,
+    parents: dict[element_tree.Element, element_tree.Element],
+) -> bool:
+    """Say whether a visible action contains the actual target node."""
+
+    current = parents.get(node)
+    while current is not None:
+        if current is ancestor:
+            return True
+        current = parents.get(current)
+    return False
+
+
+def _has_ancestor(
+    node: element_tree.Element,
+    context: dict[str, str],
+    parents: dict[element_tree.Element, element_tree.Element],
+) -> bool:
+    """Mirror the locator's ancestor axis using parsed Android XML."""
+
+    current = parents.get(node)
+    while current is not None:
+        if _matches_selector(current, context):
+            return True
+        current = parents.get(current)
+    return False
+
+
 def _layout_findings(
     entries: list[tuple[dict[str, Any], tuple[int, int, int, int]]],
     screen: tuple[int, int, int, int],
@@ -194,6 +288,7 @@ def summarize_ui_tree(
         ) from exc
 
     nodes = _elements(root)
+    parents = _parents(root)
     foreground = next(
         (node.attrib["package"] for node in nodes if node.attrib.get("package")), ""
     )
@@ -221,9 +316,7 @@ def summarize_ui_tree(
         if resolved is None:
             continue
         selector, value = resolved
-        attribute = {"resource_id": "resource-id", "content_desc": "content-desc"}.get(
-            next(iter(selector)), "text"
-        )
+        attribute = _selector_attribute(selector)
         entry: dict[str, Any] = {
             "selector": selector,
             "label": label or _descendant_label(node) or value,
@@ -231,8 +324,13 @@ def summarize_ui_tree(
             "enabled": node.attrib.get("enabled", "true") == "true",
         }
         if seen[f"{attribute}={value}"] > 1:
-            # Better to admit the ambiguity than to let the caller tap blind.
-            entry["ambiguous"] = True
+            context = _semantic_context(node, selector, nodes, parents)
+            if context is None:
+                # Better to admit the ambiguity than to let the caller tap blind.
+                entry["ambiguous"] = True
+            else:
+                entry["selector"] = {**selector, "within": context}
+                entry["disambiguated"] = True
         rectangle = _rectangle(node)
         if rectangle is not None:
             # Position is reported so layout can be audited. It is never accepted

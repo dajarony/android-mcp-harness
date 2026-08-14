@@ -8,7 +8,7 @@ selector is ambiguous.
 import unittest
 
 from contratos.mcp import HarnessError
-from contratos.ui_control import validate_selector
+from contratos.ui_control import selector_mapping, validate_selector
 from logica.evidencias.capturas import read_artifact_bytes
 from logica.navegacion.resumen import summarize_ui_tree
 
@@ -31,6 +31,24 @@ SCREEN = """<?xml version='1.0' encoding='UTF-8'?>
     <node class="android.widget.EditText" content-desc="Search" resource-id="com.android.settings:id/q" bounds="[0,0][1080,100]"/>
     <node class="android.widget.Switch" checkable="true" text="Wi-Fi" bounds="[0,800][1080,900]"/>
     <node class="android.widget.TextView" text="invisible" bounds="[0,0][0,0]"/>
+  </node>
+</hierarchy>
+"""
+
+
+CONTEXTUAL_DUPLICATES = """<?xml version='1.0' encoding='UTF-8'?>
+<hierarchy>
+  <node class="android.widget.FrameLayout" package="com.example" bounds="[0,0][1080,2400]">
+    <node content-desc="Personal profile" bounds="[0,100][1080,500]">
+      <node class="android.widget.LinearLayout" clickable="true" bounds="[0,100][1080,300]">
+        <node class="android.widget.TextView" text="Save" bounds="[30,140][300,240]"/>
+      </node>
+    </node>
+    <node content-desc="Work profile" bounds="[0,500][1080,900]">
+      <node class="android.widget.LinearLayout" clickable="true" bounds="[0,500][1080,700]">
+        <node class="android.widget.TextView" text="Save" bounds="[30,540][300,640]"/>
+      </node>
+    </node>
   </node>
 </hierarchy>
 """
@@ -108,12 +126,53 @@ class EvidenceResourceTests(unittest.TestCase):
         ):
             with self.subTest(artifact_id=hostile), self.assertRaises(HarnessError) as raised:
                 read_artifact_bytes(hostile)
-            self.assertEqual(raised.exception.code.value, "EVIDENCE_WRITE_FAILED")
+        self.assertEqual(raised.exception.code.value, "EVIDENCE_WRITE_FAILED")
 
     def test_a_well_shaped_but_absent_identifier_is_refused(self) -> None:
         with self.assertRaises(HarnessError):
             read_artifact_bytes("20260101-000000-000000-screen.png")
 
+
+class ContextualSelectorTests(unittest.TestCase):
+    """Repeated labels become actionable only when the hierarchy proves context."""
+
+    def setUp(self) -> None:
+        self.actions = summarize_ui_tree(CONTEXTUAL_DUPLICATES)["actions"]
+
+    def test_summary_anchors_repeated_labels_by_unique_semantic_ancestor(self) -> None:
+        selectors = [action["selector"] for action in self.actions]
+
+        self.assertIn(
+            {"text": "Save", "within": {"content_desc": "Personal profile"}},
+            selectors,
+        )
+        self.assertIn(
+            {"text": "Save", "within": {"content_desc": "Work profile"}},
+            selectors,
+        )
+        self.assertTrue(all(action.get("disambiguated") for action in self.actions))
+        self.assertFalse(any(action.get("ambiguous") for action in self.actions))
+
+    def test_contextual_selector_is_accepted_and_becomes_ancestor_xpath(self) -> None:
+        from logica.navegacion.semantica import _locator
+
+        raw = {"text": "Save", "within": {"content_desc": "Personal profile"}}
+        selector = validate_selector(raw)
+        _, query = _locator(selector)
+
+        self.assertEqual(selector_mapping(selector), raw)
+        self.assertIn("@text='Save'", query)
+        self.assertIn("ancestor::*[@content-desc='Personal profile']", query)
+
+    def test_context_cannot_be_nested_or_replace_the_target(self) -> None:
+        invalid = (
+            {"within": {"text": "Profile"}},
+            {"text": "Save", "within": {"text": "Profile", "within": {"text": "Root"}}},
+        )
+        for raw in invalid:
+            with self.subTest(raw=raw), self.assertRaises(HarnessError) as raised:
+                validate_selector(raw)
+            self.assertEqual(raised.exception.code.value, "INVALID_SELECTOR")
 
 class LayoutAuditTests(unittest.TestCase):
     """Position is reported so layout can be checked, never so it can be aimed at."""

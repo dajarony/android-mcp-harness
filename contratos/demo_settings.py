@@ -30,6 +30,9 @@ class SettingsDemoConfig:
     # device. Cold, that is 30-60 s, and far more on a shared CI machine. The
     # earlier 10 s budget was measured on a warm laptop and only ever held there.
     connect_timeout_seconds: int = 120
+    # A flow session retains an Appium driver only while the client is actively
+    # chaining actions. It is not a permanent ownership grant.
+    flow_idle_timeout_seconds: int = 60
 
 
 @dataclass(frozen=True)

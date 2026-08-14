@@ -35,6 +35,7 @@ routes:
       - logica/navegacion/semantica.py
       - logica/navegacion/resumen.py
       - logica/servicios/mcp_server/gate.py
+      - logica/sesiones/flujo.py
       - logica/controladores/demo_settings.py
       - logica/evidencias/capturas.py
       - logica/evidencias/imagen.py
@@ -43,6 +44,15 @@ routes:
       - contratos/ui_control.py
     contrato_salida: contratos/mcp.py
     salida: "MCP structured output over local stdio"
+  - path: cli.reference_client
+    method: "python -m entradas.comandos.cliente_referencia <flow.json>"
+    entrada: entradas/comandos/cliente_referencia.py
+    controlador: logica/servicios/cliente_referencia/runner.py
+    logica:
+      - logica/servicios/cliente_referencia/runner.py
+    contrato_entrada: contratos/cliente_referencia.py
+    contrato_salida: contratos/cliente_referencia.py
+    salida: salidas/consola/cliente_referencia.py
 
 contracts:
   - name: SettingsDemoConfig
@@ -76,6 +86,12 @@ contracts:
       - logica/navegacion/semantica.py
       - logica/navegacion/resumen.py
       - logica/servicios/mcp_server/controller.py
+  - name: ReferenceFlow
+    file: contratos/cliente_referencia.py
+    used_by:
+      - entradas/comandos/cliente_referencia.py
+      - logica/servicios/cliente_referencia/runner.py
+      - salidas/consola/cliente_referencia.py
 
 modules:
   - name: command-entry
@@ -125,11 +141,15 @@ modules:
   - name: android-mcp-controller
     type: Lógica
     file: logica/servicios/mcp_server/controller.py
-    depends_on: [emulator-operation-gate, adb-read-adapter, appium-status-adapter, demo-controller, app-launcher, semantic-navigation, screen-summary]
+    depends_on: [emulator-operation-gate, ui-flow-session, adb-read-adapter, appium-status-adapter, demo-controller, app-launcher, semantic-navigation, screen-summary]
   - name: emulator-operation-gate
     type: Lógica
     file: logica/servicios/mcp_server/gate.py
     depends_on: [mcp-contract]
+  - name: ui-flow-session
+    type: Lógica
+    file: logica/sesiones/flujo.py
+    depends_on: [appium-session, mcp-contract]
   - name: emulator-security-boundary
     type: Lógica
     file: logica/seguridad/emulador.py
@@ -163,6 +183,18 @@ modules:
     type: Contract
     file: contratos/ui_control.py
     depends_on: [mcp-contract]
+  - name: reference-client-entry
+    type: Entrada
+    file: entradas/comandos/cliente_referencia.py
+    depends_on: [reference-client-runner, reference-client-contract]
+  - name: reference-client-runner
+    type: Lógica
+    file: logica/servicios/cliente_referencia/runner.py
+    depends_on: [reference-client-contract]
+  - name: reference-client-contract
+    type: Contract
+    file: contratos/cliente_referencia.py
+    depends_on: [mcp-contract, ui-control-contract]
 
 specifications:
   - name: Android Emulator MCP Server
@@ -177,3 +209,7 @@ specifications:
     file: docs/faser/android-ui-control.faser.md
     status: implemented
     purpose: "Semantic control, evidence and emulator boundary"
+  - name: MCP Reference Client
+    file: docs/faser/reference-client.faser.md
+    status: implemented
+    purpose: "Declarative external client that proves one complete MCP task"

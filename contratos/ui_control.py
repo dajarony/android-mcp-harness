@@ -40,10 +40,11 @@ _SELECTOR_KEYS = {
 
 @dataclass(frozen=True)
 class SemanticSelector:
-    """One resolved semantic locator; mixed locators are intentionally forbidden."""
+    """One semantic target, optionally narrowed by one semantic ancestor."""
 
     kind: str
     value: str
+    within: "SemanticSelector | None" = None
 
 
 def carries_control_characters(value: str, *, allow_line_breaks: bool = False) -> bool:
@@ -76,20 +77,31 @@ def validate_package_name(package_name: object) -> str:
 
 
 def validate_selector(raw_selector: object) -> SemanticSelector:
-    """Require exactly one nonempty approved semantic selector."""
+    """Validate a target and, at most, one semantic context that contains it."""
+
+    return _validate_selector(raw_selector, allow_context=True)
+
+
+def _validate_selector(
+    raw_selector: object, *, allow_context: bool
+) -> SemanticSelector:
+    """Keep the public selector grammar finite: target plus one non-nested context."""
 
     if not isinstance(raw_selector, dict):
         raise HarnessError(
             McpErrorCode.INVALID_SELECTOR,
-            "selector must be an object with exactly one supported semantic key.",
+            "selector must be an object with one supported semantic key.",
         )
     keys = set(raw_selector)
-    if not keys.issubset(_SELECTOR_KEYS) or len(keys) != 1:
+    selector_keys = keys & _SELECTOR_KEYS
+    allowed_keys = _SELECTOR_KEYS | ({"within"} if allow_context else set())
+    if not keys.issubset(allowed_keys) or len(selector_keys) != 1:
         raise HarnessError(
             McpErrorCode.INVALID_SELECTOR,
-            "selector must contain exactly one of resource_id, text, content_desc, text_contains or input_hint.",
+            "selector must contain exactly one of resource_id, text, content_desc, "
+            "text_contains or input_hint, plus optional within.",
         )
-    kind = next(iter(keys))
+    kind = next(iter(selector_keys))
     value = raw_selector[kind]
     if (
         not isinstance(value, str)
@@ -102,7 +114,10 @@ def validate_selector(raw_selector: object) -> SemanticSelector:
             "selector value must be nonempty, at most 256 characters and free of "
             "control characters other than line breaks and tabs.",
         )
-    return SemanticSelector(kind, value)
+    within = None
+    if "within" in raw_selector:
+        within = _validate_selector(raw_selector["within"], allow_context=False)
+    return SemanticSelector(kind, value, within)
 
 
 def validate_text(text: object) -> str:
@@ -123,12 +138,12 @@ def validate_text(text: object) -> str:
 
 
 def validate_scroll_direction(direction: object) -> str:
-    """Accept only the two declared scroll intentions."""
+    """Accept one cardinal content movement, never caller-provided gesture data."""
 
-    if direction not in {"up", "down"}:
+    if direction not in {"up", "down", "left", "right"}:
         raise HarnessError(
             McpErrorCode.INVALID_SCROLL_DIRECTION,
-            "direction must be exactly 'up' or 'down'.",
+            "direction must be exactly 'up', 'down', 'left' or 'right'.",
         )
     return str(direction)
 
@@ -136,4 +151,7 @@ def validate_scroll_direction(direction: object) -> str:
 def selector_mapping(selector: SemanticSelector) -> dict[str, Any]:
     """Expose one normalized selector in result data without leaking driver objects."""
 
-    return {selector.kind: selector.value}
+    result: dict[str, Any] = {selector.kind: selector.value}
+    if selector.within is not None:
+        result["within"] = {selector.within.kind: selector.within.value}
+    return result

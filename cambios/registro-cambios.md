@@ -298,6 +298,37 @@
 
 ---
 
+## 2026-08-14 — Desambiguación por contexto semántico
+
+**Archivos afectados:**
+
+- Actualizados `contratos/ui_control.py`, `logica/navegacion/resumen.py` y
+  `logica/navegacion/semantica.py`.
+- Actualizados pruebas MCP, FASER y README.
+
+**Motivo:**
+
+- Dos botones con la misma etiqueta eran correctamente declarados `ambiguous`,
+  pero el agente no podía elegir uno aunque Android sí expusiera un ancestro
+  semántico que los distinguía.
+
+**Corrección:**
+
+- Un selector puede llevar `within` con una sola clave semántica no anidada. El
+  resumen la publica únicamente si reduce los candidatos a uno; el localizador
+  la convierte en una condición de ancestro XPath generada por el servidor, no
+  aportada por el cliente.
+- Cuando no hay contexto que pruebe unicidad, `ambiguous` se conserva y el toque
+  sigue rechazando la moneda al aire.
+
+**Verificación:**
+
+- Regresiones de resumen, contrato y transporte MCP en verde.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
 ## 2026-08-14 — La pantalla, traducida al vocabulario del propio servidor
 
 **Archivos afectados:**
@@ -602,5 +633,123 @@
 - Verificado contra el dispositivo: con el teclado abierto las tres pestañas se
   marcan y el toque falla como el arnés había avisado; al cerrarlo, cero marcas
   y el toque funciona.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — El resumen y el localizador se comprueban completos
+
+**Archivos afectados:**
+
+- Actualizado `tests/test_mcp_emulator_e2e.py`.
+- Actualizados `docs/eca/mcp-emulator-v1.md` y `README.md`.
+
+**Motivo:**
+
+- `FLOW-SEL-1` comprobaba un selector elegido de la pantalla. Era una señal
+  útil, pero no demostraba que el resto del vocabulario que `ui.get_tree`
+  publica se resolviera con el mismo localizador que usan `ui.tap` y
+  `ui.type_text`.
+
+**Corrección:**
+
+- `FLOW-SEL-ALL-1` abre la pantalla estable de Apps, lee sus objetivos y, en
+  una única sesión Appium, resuelve cada selector habilitado que no es ambiguo
+  ni está cubierto por el teclado. No pulsa los objetivos: pulsar el primero
+  cambiaría la pantalla y haría imposible comprobar los demás contra el mismo
+  estado.
+
+**Impacto:**
+
+- La promesa del resumen ya no se mide con un ejemplo. Cada destino que se
+  anuncia como alcanzable tiene que existir para el localizador semántico antes
+  de que la campaña ECA pueda quedar en verde.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Flujos UI explícitos sin sesiones huérfanas
+
+**Archivos afectados:**
+
+- Creado `logica/sesiones/flujo.py` y su banco `tests/test_ui_flow_sessions.py`.
+- Actualizados contrato MCP, controlador, entrada MCP, FASER, ECA, mapa y README.
+
+**Motivo:**
+
+- El cierre de driver por cada acción protegía el emulador, pero hacía perder el
+  foco y el texto entre `ui.type_text` y la acción siguiente. Reutilizar un
+  driver implícitamente habría creado un propietario invisible y sesiones
+  huérfanas.
+
+**Corrección:**
+
+- `ui.session.open` crea un único driver y devuelve un `session_id` opaco.
+  `ui.tap`, `ui.type_text`, `ui.scroll` y `device.back` lo aceptan de forma
+  opcional; cada uso renueva 60 s de inactividad. `ui.session.close` lo libera
+  antes y el temporizador lo cierra si el cliente desaparece.
+- Una mutación que no presenta el token mientras existe un flujo recibe
+  `EMULATOR_BUSY`; un token inválido o caducado recibe `INVALID_UI_SESSION`.
+
+**Verificación:**
+
+- Banco unitario: 90 pruebas en verde; 11 ECA omitidas sin AVD/Appium.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Scroll cardinal para carruseles
+
+**Archivos afectados:**
+
+- Actualizados `contratos/ui_control.py` y `logica/navegacion/semantica.py`.
+- Creado `tests/test_semantic_navigation.py`; actualizados FASER, ECA y README.
+
+**Motivo:**
+
+- `ui.scroll` solo podía avanzar verticalmente. Las pantallas de bienvenida y
+  carruseles horizontales seguían fuera de la frontera semántica.
+
+**Corrección:**
+
+- `direction` acepta ahora `up`, `down`, `left` y `right`. Expresa el movimiento
+  del contenido; el servidor genera el arrastre opuesto, fijo y centrado, sin
+  recibir coordenadas, distancia ni duración desde el cliente.
+
+**Verificación:**
+
+- Regresiones cubren las cuatro direcciones y la geometría normalizada de cada
+  gesto.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Cliente MCP de referencia declarativo
+
+**Archivos afectados:**
+
+- Creados contrato, runner, entrada de consola, salida JSON, ejemplo y pruebas.
+- Actualizados README, FASER y mapa global.
+
+**Motivo:**
+
+- El arnés exponía herramientas seguras, pero faltaba una aplicación externa
+  pequeña que demostrase una tarea completa por stdio y dejase un informe
+  reutilizable sin convertir al cliente en otro agente con autoridad propia.
+
+**Corrección:**
+
+- El flujo JSON declara un paquete y pasos semánticos; el cliente abre la app,
+  observa, abre y cierra su propia sesión, ejecuta los pasos y emite cada
+  respuesta MCP con su evidencia. El archivo no puede aportar un `session_id`.
+
+**Verificación:**
+
+- Pruebas cubren orden de transporte, inyección del token y cierre incluso tras
+  un fallo de UI.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.

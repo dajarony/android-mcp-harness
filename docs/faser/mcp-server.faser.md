@@ -11,7 +11,7 @@ Estado: Implementado y verificado en emulador local
 > herramientas de control semántico (`app.list_installed`, `app.open`, `ui.tap`,
 > `ui.type_text`, `ui.scroll`, `device.back`) tienen su contrato propio en
 > [`android-ui-control.faser.md`](android-ui-control.faser.md). El catálogo
-> completo son **diez** herramientas y ninguna gana capacidades por estar
+> completo son **doce** herramientas y ninguna gana capacidades por estar
 > descrita en un fichero u otro.
 
 ## DEFINICIÓN
@@ -34,9 +34,11 @@ contra un emulador desechable. Esta versión no abre puertos de red.
 | `operationId` | `UUID`, nuevo por llamada | controlador MCP | Nunca se reutiliza. |
 | `activeOperation` | `bool`, `false` | gestor de sesión | Solo una operación UI por emulador. |
 | `evidencePath` | `str \| null`, `null` | evidencia | Siempre bajo `artifacts/`. |
+| `activeUiFlow` | `session_id \| null`, `null` | gestor de flujo | Único, opaco, con caducidad por inactividad. |
 
-Los estados viven solo durante una operación salvo el archivo de evidencia. No
-hay estado persistente de Appium ni sesiones compartidas entre llamadas.
+Los estados viven solo durante una operación salvo el archivo de evidencia. Un
+flujo UI explícito es la excepción controlada: mantiene un único driver solo
+mientras su `session_id` opaco se renueva; caduca y se cierra tras 60 s sin uso.
 
 ## ENTRADAS
 
@@ -46,12 +48,16 @@ hay estado persistente de Appium ni sesiones compartidas entre llamadas.
 - `screen.capture`: captura local de la pantalla actual.
 - `app.list_installed`: lectura de paquetes instalados.
 - `settings.open_apps`: navegación declarada de Ajustes a Apps.
+- `ui.session.open`: reserva un flujo Appium exclusivo y devuelve un
+  `session_id` opaco.
+- `ui.session.close(session_id)`: cierra el flujo correspondiente.
 
 Definidas en [`android-ui-control.faser.md`](android-ui-control.faser.md) y
 servidas por este mismo proceso, contrato y bloqueo:
 
 - `app.open(package_name)`, `ui.tap(selector)`,
-  `ui.type_text(selector, text)`, `ui.scroll(direction)`, `device.back`.
+  `ui.type_text(selector, text, session_id?)`, `ui.scroll(direction, session_id?)`,
+  `device.back(session_id?)`. `ui.tap` también acepta `session_id?`.
 
 Configuración:
 
@@ -82,7 +88,7 @@ stacktrace ni una ruta fuera de `artifacts/`.
 
 **Condición:** servidor MCP iniciado.
 
-**Acción:** publicar exactamente las diez herramientas declaradas entre este
+**Acción:** publicar exactamente las doce herramientas declaradas entre este
 FASER y el de control de UI. Ninguna otra.
 
 **Resultado:** catálogo estable con sus esquemas.
@@ -119,7 +125,9 @@ No abre sesión Appium.
 selector que **este mismo servidor acepta** en `ui.tap` y `ui.type_text`, su
 `role` (`button`, `input`, `toggle`, `long-press`), si está `enabled`, su
 `bounds` para auditoría y, cuando ese selector encaja con más de un elemento,
-`ambiguous: true`. Acompañan `screen`, `layout_findings` y `keyboard`.
+`ambiguous: true`. Si un ancestro semántico deja uno solo de esos destinos, el
+selector lleva `within` y `disambiguated: true`; nunca recibe posiciones ni
+XPath de quien llama. Acompañan `screen`, `layout_findings` y `keyboard`.
 
 El teclado no aparece en el volcado de `uiautomator`: el volcado describe la
 ventana de la aplicación como si nada estuviera encima. Por eso se lee su marco
@@ -148,6 +156,22 @@ cliente que no comparte disco con el arnés también puede verla.
 **Error:** `EVIDENCE_WRITE_FAILED`; nunca afirmar éxito sin evidencia, y una
 captura de un solo color plano no es evidencia: se rechaza igual que un PNG
 inválido.
+
+### Evento: `ui.session.open` y `ui.session.close`
+
+**Condición:** Appium disponible y ningún flujo UI activo.
+
+**Acción:** abrir un único driver Appium y devolver un identificador opaco. Las
+acciones UI que presenten ese identificador reutilizan el mismo driver y
+renuevan su plazo de inactividad. `ui.session.close` exige el mismo identificador
+y lo cierra inmediatamente; tras 60 s sin uso un temporizador también lo cierra.
+
+**Resultado:** una cadena escribir-y-enviar puede conservar la pantalla y el
+foco. Un cliente que no presente el identificador conserva el comportamiento
+anterior: driver temporal por acción.
+
+**Error:** `EMULATOR_BUSY` si ya hay un flujo y `INVALID_UI_SESSION` si el token
+es malformado, ajeno o ya ha caducado.
 
 ### Evento: `settings.open_apps`
 
@@ -181,6 +205,8 @@ inválido.
 - Observación no puede invocar tap, input ni ADB mutante.
 - Navegación usa selectores semánticos; coordenadas no forman parte del contrato.
 - Toda sesión abierta se cierra incluso con timeout o excepción.
+- Un flujo UI solo se usa con el token opaco que lo abrió, no se comparte, y se
+  cierra de forma explícita o por caducidad de inactividad.
 - La captura queda en `artifacts/`, directorio ignorado por Git.
 - Toda captura se decodifica antes de aceptarse. Si todos sus píxeles son
   idénticos, la prueba no prueba nada y se rechaza. Se asume el intercambio: una
@@ -211,6 +237,7 @@ inválido.
 | `EMULATOR_UNAVAILABLE` | UDID no disponible/no emulador | Pedir arrancar AVD; no usar Appium. |
 | `APPIUM_UNAVAILABLE` | Appium no responde | Pedir iniciarlo; MCP no inicia procesos. |
 | `EMULATOR_BUSY` | Navegación en curso | Rechazo inmediato; el cliente reintenta. |
+| `INVALID_UI_SESSION` | Token ausente, ajeno o caducado | Abrir un flujo nuevo; nunca reutilizar un driver desconocido. |
 | `SETTINGS_FOREGROUND_FAILED` | Paquete visible incorrecto | Cerrar sesión y capturar evidencia. |
 | `UI_ELEMENT_NOT_FOUND` | Cambio de árbol/etiqueta | Adjuntar evidencia; nunca pulsar coordenadas. |
 | `OPERATION_TIMEOUT` | Excede el tiempo | Cerrar sesión y liberar bloqueo. |
@@ -248,6 +275,8 @@ inválido.
   `APPIUM_UNAVAILABLE` sin llegar a la pila de red.
 - Dos navegaciones concurrentes producen una sola sesión; la segunda recibe
   `EMULATOR_BUSY`.
+- Un flujo conserva el mismo driver para varias acciones, rechaza un segundo
+  propietario y cierra su driver tanto al cerrarse como al caducar.
 - Un selector inexistente produce `UI_ELEMENT_NOT_FOUND`, evidencia y cero taps
   por coordenadas.
 - Todo bug confirmado durante ECA se convierte en regresión versionada antes de
@@ -256,7 +285,9 @@ inválido.
 ## DECISIONES
 
 - Se elige MCP por stdio local antes que HTTP para evitar exposición de red.
-- Se elige sesión temporal por operación para no dejar estado Appium huérfano.
+- Se elige sesión temporal por operación como valor por defecto. El flujo
+  explícito añade continuidad sin estado huérfano: su token no es adivinable,
+  tiene un solo propietario y caduca.
 - Se elige ADB de solo lectura para árbol y captura: crear una sesión Appium
   puede llevar una aplicación al frente y violaría la invariante de observación.
 - Se elige bloqueo único porque el emulador es un recurso global.
