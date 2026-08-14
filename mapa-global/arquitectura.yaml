@@ -33,8 +33,12 @@ routes:
       - logica/infraestructura/appium.py
       - logica/infraestructura/lanzador.py
       - logica/navegacion/semantica.py
+      - logica/navegacion/arbol.py
+      - logica/navegacion/objetivos.py
+      - logica/navegacion/maqueta.py
       - logica/navegacion/resumen.py
       - logica/servicios/mcp_server/gate.py
+      - logica/servicios/mcp_server/ejecutor_ui.py
       - logica/sesiones/flujo.py
       - logica/controladores/demo_settings.py
       - logica/evidencias/capturas.py
@@ -141,7 +145,11 @@ modules:
   - name: android-mcp-controller
     type: Lógica
     file: logica/servicios/mcp_server/controller.py
-    depends_on: [emulator-operation-gate, ui-flow-session, adb-read-adapter, appium-status-adapter, demo-controller, app-launcher, semantic-navigation, screen-summary]
+    depends_on: [emulator-operation-gate, ui-flow-session, ui-action-executor, adb-read-adapter, appium-status-adapter, demo-controller, app-launcher, semantic-navigation, screen-summary]
+  - name: ui-action-executor
+    type: Lógica
+    file: logica/servicios/mcp_server/ejecutor_ui.py
+    depends_on: [ui-flow-session, appium-session, screenshot-evidence, mcp-contract]
   - name: emulator-operation-gate
     type: Lógica
     file: logica/servicios/mcp_server/gate.py
@@ -174,7 +182,19 @@ modules:
   - name: screen-summary
     type: Logic
     file: logica/navegacion/resumen.py
-    depends_on: [mcp-contract]
+    depends_on: [screen-tree, semantic-targets, screen-layout]
+  - name: screen-tree
+    type: Logic
+    file: logica/navegacion/arbol.py
+    depends_on: []
+  - name: semantic-targets
+    type: Logic
+    file: logica/navegacion/objetivos.py
+    depends_on: [screen-tree, ui-control-contract]
+  - name: screen-layout
+    type: Logic
+    file: logica/navegacion/maqueta.py
+    depends_on: [screen-tree]
   - name: semantic-navigation
     type: Logic
     file: logica/navegacion/semantica.py

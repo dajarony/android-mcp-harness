@@ -32,13 +32,13 @@ contra un emulador desechable. Esta versión no abre puertos de red.
 |---|---|---|---|
 | `configuredUdid` | `str`, `emulator-5554` | configuración de entrada | Debe empezar por `emulator-` y estar activo en ADB. |
 | `operationId` | `UUID`, nuevo por llamada | controlador MCP | Nunca se reutiliza. |
-| `activeOperation` | `bool`, `false` | gestor de sesión | Solo una operación UI por emulador. |
+| `activeOperation` | `bool`, `false` | `EmulatorOperationGate` | Solo una operación UI por emulador. |
 | `evidencePath` | `str \| null`, `null` | evidencia | Siempre bajo `artifacts/`. |
 | `activeUiFlow` | `session_id \| null`, `null` | gestor de flujo | Único, opaco, con caducidad por inactividad. |
 
-Los estados viven solo durante una operación salvo el archivo de evidencia. Un
-flujo UI explícito es la excepción controlada: mantiene un único driver solo
-mientras su `session_id` opaco se renueva; caduca y se cierra tras 60 s sin uso.
+Los estados viven solo durante una operación, salvo el archivo de evidencia y
+un flujo UI explícito. Este último mantiene un único driver solo mientras su
+`session_id` opaco se renueva; caduca y se cierra tras 60 s sin uso.
 
 ## ENTRADAS
 

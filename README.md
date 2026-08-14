@@ -250,13 +250,27 @@ flowchart LR
 | `contratos/` | Validación de intenciones y forma pública de las respuestas |
 | `logica/seguridad/` | Guardias: qué UDID y qué Appium son aceptables |
 | `logica/infraestructura/` | Adaptadores ADB y Appium, comandos fijos |
-| `logica/navegacion/` | Traducción de semántica a localizadores, sin coordenadas |
-| `logica/servicios/mcp_server/` | Controlador y bloqueo de exclusividad |
+| `logica/navegacion/` | Lectura del árbol, selección semántica, auditoría de maqueta y localizadores; sin coordenadas |
+| `logica/servicios/mcp_server/` | Fachada MCP, ejecución acotada de Appium y bloqueo de exclusividad |
 | `logica/evidencias/` | Rutas únicas de evidencia, a prueba de reintentos |
 | `docs/faser/` · `docs/eca/` | El contrato escrito **antes** del código y su oráculo |
 
 Mapa completo en [`mapa-global/arquitectura.yaml`](mapa-global/arquitectura.yaml)
 y bitácora en [`cambios/registro-cambios.md`](cambios/registro-cambios.md).
+
+La división interna del servidor evita que una pieza mezcle responsabilidades:
+
+| Módulo | Una responsabilidad |
+|---|---|
+| `navegacion/arbol.py` | Convertir XML Android en nodos visibles y sus ancestros. |
+| `navegacion/objetivos.py` | Elegir roles, selectores y contexto `within` sin actuar sobre la pantalla. |
+| `navegacion/maqueta.py` | Medir bounds, teclado, zonas táctiles y solapes. |
+| `navegacion/resumen.py` | Orquestar las tres lecturas anteriores y publicar el resumen estable. |
+| `mcp_server/controller.py` | Exponer las doce herramientas, validar sus entradas y coordinar adaptadores. |
+| `mcp_server/ejecutor_ui.py` | Ejecutar llamadas Appium con techo, evidencia y cierre seguro del driver. |
+
+La API MCP no cambia con esta división: es una frontera interna para que XML,
+decisiones semánticas y Appium no vuelvan a crecer en el mismo fichero.
 
 ---
 

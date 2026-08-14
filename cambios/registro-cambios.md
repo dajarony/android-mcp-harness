@@ -783,3 +783,30 @@
   un fallo de UI.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Documentación de responsabilidades internas MCP
+
+**Archivos afectados:**
+
+- Actualizados `README.md`, mapa SUME, ambos FASER y documento del módulo MCP.
+
+**Motivo:**
+
+- Los refactors separaron el resumen de pantalla en árbol, objetivos y maqueta,
+  y apartaron la ejecución Appium del controlador. Los documentos todavía
+  describían la estructura anterior y el módulo del servidor hablaba de diez
+  herramientas y de no conservar sesiones entre llamadas.
+
+**Corrección:**
+
+- El mapa declara los módulos nuevos y sus dependencias. README y FASER
+  documentan una responsabilidad por fichero. El documento del servidor declara
+  las doce herramientas y el arriendo explícito de sesión con caducidad.
+
+**Verificación:**
+
+- El banco unitario conserva 115 pruebas en verde; no cambia el contrato MCP.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
