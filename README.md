@@ -316,8 +316,11 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
   `emulator-5554`. Presupuesto de ≤30 s por llamada cumplido con holgura.
 - ✅ **Sin sesiones huérfanas**, medido: se pregunta a Appium cuántas sesiones
   tiene antes y después de una tanda con éxitos y con fallos.
-- ⚠️ **Dos niveles de API en la campaña** (34 y 36). Una capa de fabricante
-  encima de Android sigue pudiendo mover selectores y tiempos.
+- ✅ **Dos niveles de API en verde** (34 y 36), en máquinas que no son la mía.
+  Llegar ahí costó seis vueltas y descubrió que el buscador de Ajustes es una
+  clase distinta en cada versión de Android.
+- ⚠️ **Una capa de fabricante** encima de Android sigue pudiendo mover selectores
+  y tiempos. No está probado.
 - ⚠️ **El resumen es una opinión sobre la pantalla.** Marca lo ambiguo, pero un
   diseño que no expone ni texto, ni `content-desc`, ni `resource-id` sigue sin
   ser accionable por semántica — y eso es un problema de la app, no del arnés.
@@ -335,6 +338,7 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 - [x] Evidencia legible como recurso MCP, no como ruta
 - [x] Segundo nivel de API en la campaña
 - [ ] Un AVD con capa de fabricante, no solo imágenes de Google
+- [ ] Una prueba que recorra las dos piezas juntas: todo lo que el resumen ofrece, el localizador lo encuentra
 - [ ] `ui.tap` capaz de desambiguar sin recurrir a coordenadas
 - [ ] Un cliente de referencia que recorra una app real de principio a fin
 

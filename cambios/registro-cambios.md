@@ -476,3 +476,48 @@
 - Sin regresión en API 36: campaña local completa en verde.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Seis intentos hasta que el arnés se delató solo
+
+**Archivos afectados:**
+
+- Actualizados `logica/navegacion/semantica.py` y `logica/navegacion/resumen.py`.
+- Actualizados `tests/test_screen_summary.py` y `tests/test_mcp_emulator_e2e.py`.
+
+**Motivo:**
+
+- La campaña corrió por primera vez sobre dos niveles de API. `FLOW-TEXT-1`
+  fallaba en API 34 y pasaba en API 36. Hicieron falta seis vueltas, y las cinco
+  primeras encontraron obstáculos para poder ver, no la causa.
+
+**Hallazgos ECA y correcciones, en orden:**
+
+1. `input_hint` exigía un descendiente con `content-desc`, la forma de Compose en
+   Android 16. Ampliado a los cuatro sitios donde Android guarda una pista.
+2. El mensaje de `UI_ELEMENT_NOT_FOUND` no decía nada útil. Ahora nombra hasta
+   diez objetivos que la pantalla sí ofrece, con su papel. Un callejón sin salida
+   que nombra las alternativas es un reintento.
+3. Dieciocho aserciones de la campaña eran `assertTrue(resultado["ok"])` sin
+   mensaje: construían el diagnóstico y lo tiraban en la aserción.
+4. El resumidor solo entendía una de las dos formas del volcado. `uiautomator
+   dump` llama `<node>` a cada elemento; el `page_source` de Appium lo nombra con
+   su clase. Contra la segunda encontraba cero elementos.
+5. El localizador exigía la clase exacta `android.widget.EditText`. El buscador
+   es `EditText` en una versión y `AppCompatEditText` en otra. Comparado ahora
+   por sufijo.
+6. La causa real: el resumen buscaba la pista de un descendiente por texto o por
+   descripción, y el localizador solo por descripción. El resumen anunciaba
+   `'Search…' (input)` mientras el localizador no encontraba nada.
+
+**Impacto:**
+
+- Un sistema que se contradice entre lo que anuncia y lo que acepta es el peor
+  fallo posible aquí: si la lista de objetivos no es fiable, no vale nada. Queda
+  una prueba que compara las dos piezas entre sí para que no vuelvan a divergir
+  en silencio.
+- Campaña en verde sobre API 34 y API 36. 71 pruebas unitarias y 10 secuencias
+  reales por nivel.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
