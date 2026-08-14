@@ -271,6 +271,9 @@ La división interna del servidor evita que una pieza mezcle responsabilidades:
 
 La API MCP no cambia con esta división: es una frontera interna para que XML,
 decisiones semánticas y Appium no vuelvan a crecer en el mismo fichero.
+El banco compara además `git ls-files logica/`, filtrado por Python, con el mapa
+SUME en ambos sentidos: un módulo sin mapa, una entrada obsoleta o un módulo
+repetido detiene CI antes de que la documentación vuelva a separarse del código.
 
 ---
 
