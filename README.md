@@ -112,6 +112,27 @@ selector a mano. Simplemente ha dejado de ser el precio de mirar la pantalla:
 **17.508 bytes de XML frente a 1.815 del resumen, un 90 % menos**, medido sobre
 la lista de aplicaciones de Ajustes.
 
+### Lo visual, hasta donde una máquina puede jurarlo
+
+`bounds` viaja en cada acción y el arnés comprueba lo que es aritmética, no gusto:
+
+```json
+{"issue": "touch_target_too_small", "selector": {"text": "Guardar"},
+ "size_px": [40, 40], "minimum_px": 126}
+```
+
+Tres comprobaciones, y solo tres, porque son las únicas inequívocas: un elemento
+**fuera de la pantalla**, uno **sin área**, y un control **más pequeño que una
+yema de dedo en los dos ejes** (los 48 dp de Android, convertidos con la densidad
+real del dispositivo). Una fila ancha recortada por el scroll **no** se denuncia:
+sería un falso positivo, y el objetivo declarado es cero.
+
+Si algo es bonito no se comprueba. Si un botón está fuera de la pantalla, sí.
+
+> **La posición sale, nunca entra.** `bounds` se publica para auditar y jamás se
+> acepta como selector. Leer dónde está algo y apuntar a un píxel son dos poderes
+> distintos, y solo el primero es seguro de ceder.
+
 ### La evidencia se puede ver, no solo citar
 
 Cada captura se expone además como recurso MCP:
@@ -124,6 +145,13 @@ Un cliente que no comparta disco con el arnés lee ahí la imagen. El recurso so
 sirve identificadores con la forma exacta que el arnés emite y comprueba que la
 ruta resuelta siga dentro de `artifacts/`: un recorrido de directorios no es
 representable.
+
+**Y la captura tiene que mostrar algo.** Un emulador sin ventana o con la pila
+gráfica rota responde a `screencap` con un PNG perfectamente válido de un solo
+color plano, y cualquier comprobación que solo mirase los bytes mágicos lo daría
+por bueno. El arnés decodifica la imagen con la biblioteca estándar —sin
+dependencias— y si todos los píxeles son idénticos devuelve
+`EVIDENCE_WRITE_FAILED`. Un fichero que existe no es una prueba.
 
 ---
 

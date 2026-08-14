@@ -17,11 +17,13 @@ Salidas:
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
 from contratos.mcp import HarnessError, McpErrorCode
+from logica.evidencias.imagen import assert_png_shows_something
 from logica.seguridad.emulador import assert_emulator_udid
 
 
@@ -106,6 +108,22 @@ def read_installed_packages(udid: str) -> list[str]:
     return sorted(packages)
 
 
+def read_display_density(udid: str) -> int:
+    """Read the screen density so layout sizes can be judged in dp, not pixels."""
+
+    output = _run_read_only_adb(udid, ["shell", "wm", "density"], 5).decode(
+        "utf-8", errors="replace"
+    )
+    # "Override density" wins when present, exactly as Android applies it.
+    densities = re.findall(r"density:\s*(\d+)", output)
+    if not densities:
+        raise HarnessError(
+            McpErrorCode.EMULATOR_UNAVAILABLE,
+            "Android did not report a display density.",
+        )
+    return int(densities[-1])
+
+
 def read_ui_tree(udid: str) -> str:
     """Capture the current UI hierarchy without sending an input event."""
 
@@ -126,9 +144,4 @@ def read_png_screenshot(udid: str) -> bytes:
     """Capture the current screen with ADB without changing its visible state."""
 
     payload = _run_read_only_adb(udid, ["exec-out", "screencap", "-p"], 10)
-    if not payload.startswith(b"\x89PNG\r\n\x1a\n"):
-        raise HarnessError(
-            McpErrorCode.EVIDENCE_WRITE_FAILED,
-            "Android did not return a valid PNG screenshot.",
-        )
-    return payload
+    return assert_png_shows_something(payload, "Android")

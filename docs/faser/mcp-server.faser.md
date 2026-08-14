@@ -1,7 +1,7 @@
 ===============================================================
 Componente: Android Emulator MCP Server
 Tipo: Service / MCP Gateway
-Version: 0.4.0
+Version: 0.5.0
 Estado: Implementado y verificado en emulador local
 ===============================================================
 
@@ -117,8 +117,9 @@ No abre sesión Appium.
 **Resultado:** `foreground_package`, `texts` con lo que dice la pantalla,
 `actions` con un objetivo por entrada y `can_scroll`. Cada acción trae el
 selector que **este mismo servidor acepta** en `ui.tap` y `ui.type_text`, su
-`role` (`button`, `input`, `toggle`, `long-press`), si está `enabled` y, cuando
-ese selector encaja con más de un elemento, `ambiguous: true`.
+`role` (`button`, `input`, `toggle`, `long-press`), si está `enabled`, su
+`bounds` para auditoría y, cuando ese selector encaja con más de un elemento,
+`ambiguous: true`. Acompañan `screen` y `layout_findings`.
 
 El volcado completo no se entrega por defecto: cuesta unas diez veces más y
 obliga a quien llama a interpretar XML. Se pide con `include_raw: true` y llega
@@ -138,7 +139,9 @@ guardar una captura bajo `artifacts/` y no abrir sesión Appium.
 cambio UI intencionado. La imagen se lee como recurso MCP, de modo que un
 cliente que no comparte disco con el arnés también puede verla.
 
-**Error:** `EVIDENCE_WRITE_FAILED`; nunca afirmar éxito sin evidencia.
+**Error:** `EVIDENCE_WRITE_FAILED`; nunca afirmar éxito sin evidencia, y una
+captura de un solo color plano no es evidencia: se rechaza igual que un PNG
+inválido.
 
 ### Evento: `settings.open_apps`
 
@@ -173,6 +176,13 @@ cliente que no comparte disco con el arnés también puede verla.
 - Navegación usa selectores semánticos; coordenadas no forman parte del contrato.
 - Toda sesión abierta se cierra incluso con timeout o excepción.
 - La captura queda en `artifacts/`, directorio ignorado por Git.
+- Toda captura se decodifica antes de aceptarse. Si todos sus píxeles son
+  idénticos, la prueba no prueba nada y se rechaza. Se asume el intercambio: una
+  pantalla realmente uniforme de borde a borde también sería rechazada, y en
+  Android eso es prácticamente imposible.
+- `bounds` y `screen` se publican para auditar la maqueta, y `layout_findings`
+  denuncia solo lo inequívoco: fuera de pantalla, sin área, o control menor que
+  48 dp en ambos ejes. La posición nunca se acepta como selector de entrada.
 - El recurso `artifact://{artifact_id}` sirve únicamente identificadores con la
   forma que este arnés emite, y comprueba que la ruta resuelta siga dentro de
   `artifacts/`. Un recorrido de directorios no es representable.

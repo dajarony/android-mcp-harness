@@ -72,7 +72,10 @@ jobs:
           api-level: ${{ matrix.api_level }}
           target: google_apis
           arch: x86_64
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          # swiftshader_indirect, the usual default, answered every screencap on
+          # this project with a valid PNG of one flat colour. Direct swiftshader
+          # renders a real framebuffer, and the evidence check below now proves it.
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader -no-snapshot
           disable-animations: true
           script: |
             adb wait-for-device

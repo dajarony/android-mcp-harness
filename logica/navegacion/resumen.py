@@ -17,6 +17,7 @@ Salidas:
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as element_tree
 from collections import Counter
 from typing import Any
@@ -27,7 +28,21 @@ from contratos.mcp import HarnessError, McpErrorCode
 MAX_ACTIONS = 120
 MAX_TEXTS = 200
 
+# Android's own minimum touch target. Anything smaller is a defect, not a taste.
+MIN_TOUCH_TARGET_DP = 48
+
 _EMPTY_BOUNDS = "[0,0][0,0]"
+_BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
+
+
+def _rectangle(node: element_tree.Element) -> tuple[int, int, int, int] | None:
+    """Read a node's rectangle as left, top, right, bottom."""
+
+    match = _BOUNDS.fullmatch(node.attrib.get("bounds", ""))
+    if match is None:
+        return None
+    left, top, right, bottom = (int(value) for value in match.groups())
+    return left, top, right, bottom
 
 
 def _is_true(node: element_tree.Element, attribute: str) -> bool:
@@ -91,7 +106,44 @@ def _candidate_selector(
     return None
 
 
-def summarize_ui_tree(ui_xml: str) -> dict[str, Any]:
+def _layout_findings(
+    entries: list[tuple[dict[str, Any], tuple[int, int, int, int]]],
+    screen: tuple[int, int, int, int],
+    density: int | None,
+) -> list[dict[str, Any]]:
+    """Report layout defects a machine can prove, and only those.
+
+    Whether a screen is beautiful is not checkable and is left alone. Whether a
+    button sits outside the display, has no area, or is too small for a finger
+    is arithmetic, and it is exactly what a screenshot review keeps missing.
+    """
+
+    minimum = round(MIN_TOUCH_TARGET_DP * density / 160) if density else None
+    findings: list[dict[str, Any]] = []
+    for entry, (left, top, right, bottom) in entries:
+        width, height = right - left, bottom - top
+        if width <= 0 or height <= 0:
+            findings.append({"issue": "no_area", "selector": entry["selector"]})
+            continue
+        if left < screen[0] or top < screen[1] or right > screen[2] or bottom > screen[3]:
+            findings.append({"issue": "off_screen", "selector": entry["selector"]})
+        # Both axes, deliberately. A wide row only 84 px tall is not a tiny
+        # button, it is a row the scroll container cut off, and reporting that
+        # would be the false positive the objective forbids. A control smaller
+        # than a fingertip in *both* directions is never anything but a defect.
+        if minimum and width < minimum and height < minimum:
+            findings.append(
+                {
+                    "issue": "touch_target_too_small",
+                    "selector": entry["selector"],
+                    "size_px": [width, height],
+                    "minimum_px": minimum,
+                }
+            )
+    return findings
+
+
+def summarize_ui_tree(ui_xml: str, density: int | None = None) -> dict[str, Any]:
     """Turn a raw accessibility dump into what a model can actually act on.
 
     The dump is the truth, but handing it over whole makes the caller pay for
@@ -122,6 +174,7 @@ def summarize_ui_tree(ui_xml: str) -> dict[str, Any]:
                 seen[f"{attribute}={value}"] += 1
 
     actions: list[dict[str, Any]] = []
+    placed: list[tuple[dict[str, Any], tuple[int, int, int, int]]] = []
     texts: list[str] = []
     for node in nodes:
         label = _own_label(node)
@@ -147,9 +200,27 @@ def summarize_ui_tree(ui_xml: str) -> dict[str, Any]:
         if seen[f"{attribute}={value}"] > 1:
             # Better to admit the ambiguity than to let the caller tap blind.
             entry["ambiguous"] = True
+        rectangle = _rectangle(node)
+        if rectangle is not None:
+            # Position is reported so layout can be audited. It is never accepted
+            # back as input: reading where something is and aiming at a pixel are
+            # different powers, and only the first one is safe to hand over.
+            entry["bounds"] = {
+                "left": rectangle[0],
+                "top": rectangle[1],
+                "width": rectangle[2] - rectangle[0],
+                "height": rectangle[3] - rectangle[1],
+            }
         if entry not in actions:
             actions.append(entry)
+            if rectangle is not None:
+                placed.append((entry, rectangle))
 
+    screen = next(
+        (rect for rect in (_rectangle(node) for node in nodes) if rect is not None),
+        (0, 0, 0, 0),
+    )
+    findings = _layout_findings(placed, screen, density)
     truncated = len(actions) > MAX_ACTIONS or len(texts) > MAX_TEXTS
     return {
         "foreground_package": foreground,
@@ -157,6 +228,12 @@ def summarize_ui_tree(ui_xml: str) -> dict[str, Any]:
         "texts": texts[:MAX_TEXTS],
         # ui.scroll works on the screen, so this is a screen-level fact.
         "can_scroll": any(_is_true(node, "scrollable") for node in nodes),
-        "counts": {"actions": len(actions), "texts": len(texts)},
+        "screen": {"width": screen[2] - screen[0], "height": screen[3] - screen[1]},
+        "layout_findings": findings,
+        "counts": {
+            "actions": len(actions),
+            "texts": len(texts),
+            "layout_findings": len(findings),
+        },
         "truncated": truncated,
     }

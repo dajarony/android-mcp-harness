@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from contratos.mcp import HarnessError, McpErrorCode
+from logica.evidencias.imagen import assert_png_shows_something
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,10 +66,17 @@ def build_screenshot_path(label: str) -> Path:
 
 
 def save_screenshot(driver: Any, label: str) -> Path:
-    """Persist one screenshot and return its absolute path."""
+    """Persist one screenshot, refusing to keep a file that proves nothing."""
 
     path = build_screenshot_path(label)
     driver.save_screenshot(str(path))
+    try:
+        assert_png_shows_something(path.read_bytes(), "Appium")
+    except HarnessError:
+        # An empty capture is not evidence, and leaving it on disk would let a
+        # later reader mistake it for one.
+        path.unlink(missing_ok=True)
+        raise
     return path
 
 

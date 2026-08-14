@@ -113,3 +113,62 @@ class EvidenceResourceTests(unittest.TestCase):
     def test_a_well_shaped_but_absent_identifier_is_refused(self) -> None:
         with self.assertRaises(HarnessError):
             read_artifact_bytes("20260101-000000-000000-screen.png")
+
+
+class LayoutAuditTests(unittest.TestCase):
+    """Position is reported so layout can be checked, never so it can be aimed at."""
+
+    def setUp(self) -> None:
+        # 420 dpi, so Android's 48 dp minimum touch target is 126 px.
+        self.summary = summarize_ui_tree(SCREEN, density=420)
+
+    def test_position_is_reported_for_auditing(self) -> None:
+        calendar = next(a for a in self.summary["actions"] if a["label"] == "Calendar")
+        self.assertEqual(
+            calendar["bounds"], {"left": 0, "top": 200, "width": 1080, "height": 200}
+        )
+        self.assertEqual(self.summary["screen"], {"width": 1080, "height": 2400})
+
+    def test_position_is_never_accepted_back_as_a_selector(self) -> None:
+        for action in self.summary["actions"]:
+            self.assertNotIn("bounds", action["selector"])
+
+    def test_a_control_smaller_than_a_fingertip_is_reported(self) -> None:
+        tiny = summarize_ui_tree(
+            SCREEN.replace('text="Wi-Fi" bounds="[0,800][1080,900]"',
+                           'text="Wi-Fi" bounds="[0,800][40,840]"'),
+            density=420,
+        )
+        issues = [f for f in tiny["layout_findings"] if f["issue"] == "touch_target_too_small"]
+        self.assertEqual([f["selector"] for f in issues], [{"text": "Wi-Fi"}])
+
+    def test_a_wide_row_clipped_by_scrolling_is_not_called_tiny(self) -> None:
+        """The objective is zero false positives, so only the unambiguous counts."""
+
+        clipped = summarize_ui_tree(
+            SCREEN.replace('bounds="[0,200][1080,400]"', 'bounds="[0,200][1080,284]"'),
+            density=420,
+        )
+        self.assertEqual(
+            [f for f in clipped["layout_findings"] if f["issue"] == "touch_target_too_small"],
+            [],
+        )
+
+    def test_an_element_outside_the_display_is_reported(self) -> None:
+        outside = summarize_ui_tree(
+            SCREEN.replace('bounds="[0,400][1080,600]"', 'bounds="[0,2500][1080,2700]"'),
+            density=420,
+        )
+        self.assertIn("off_screen", [f["issue"] for f in outside["layout_findings"]])
+
+    def test_a_healthy_screen_reports_nothing(self) -> None:
+        self.assertEqual(self.summary["layout_findings"], [])
+
+    def test_without_density_sizes_are_not_judged(self) -> None:
+        """Guessing dp from pixels would invent findings, so it is not attempted."""
+
+        blind = summarize_ui_tree(SCREEN)
+        self.assertEqual(
+            [f for f in blind["layout_findings"] if f["issue"] == "touch_target_too_small"],
+            [],
+        )

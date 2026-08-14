@@ -26,6 +26,7 @@ from contratos.mcp import HarnessError, McpErrorCode, McpToolResult
 from logica.controladores.demo_settings import run_settings_demo
 from logica.evidencias.capturas import ARTIFACTS, save_png_artifact, save_screenshot
 from logica.infraestructura.adb import (
+    read_display_density,
     read_emulator_properties,
     read_installed_packages,
     read_png_screenshot,
@@ -65,6 +66,7 @@ class AndroidMcpController:
     ) -> None:
         self._config = config
         self._gate = gate or EmulatorOperationGate()
+        self._density: int | None = None
 
     async def get_emulator_status(self) -> dict[str, Any]:
         """Return read-only ADB and Appium status data."""
@@ -162,7 +164,13 @@ class AndroidMcpController:
         """Read the screen and hand back what can be acted on, not the whole dump."""
 
         raw = await asyncio.to_thread(read_ui_tree, self._config.udid)
-        data = summarize_ui_tree(raw)
+        if self._density is None:
+            # Density does not change while a device is up, so one read is enough
+            # to express sizes in dp instead of meaningless pixels.
+            self._density = await asyncio.to_thread(
+                read_display_density, self._config.udid
+            )
+        data = summarize_ui_tree(raw, self._density)
         if include_raw is True:
             # The dump stays reachable for a human debugging a selector; it is
             # simply no longer the default price of looking at the screen.

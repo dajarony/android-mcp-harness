@@ -6,7 +6,7 @@
 # Salidas: mapa vivo para revisión humana o de agentes.
 
 system: android-mcp-harness
-version: 0.4.0
+version: 0.5.0
 last_updated: 2026-08-14
 sume_version: "1.0"
 
@@ -19,6 +19,7 @@ routes:
       - logica/sesiones/appium.py
       - logica/navegacion/ajustes.py
       - logica/evidencias/capturas.py
+      - logica/evidencias/imagen.py
     contrato_entrada: contratos/demo_settings.py
     contrato_salida: contratos/demo_settings.py
     salida: salidas/consola/demo_settings.py
@@ -36,6 +37,7 @@ routes:
       - logica/servicios/mcp_server/gate.py
       - logica/controladores/demo_settings.py
       - logica/evidencias/capturas.py
+      - logica/evidencias/imagen.py
     contrato_entrada:
       - contratos/mcp.py
       - contratos/ui_control.py
@@ -129,6 +131,10 @@ modules:
     type: Logic
     file: logica/infraestructura/lanzador.py
     depends_on: [adb-read-adapter, emulator-security-boundary, ui-control-contract]
+  - name: image-evidence-check
+    type: Logic
+    file: logica/evidencias/imagen.py
+    depends_on: [mcp-contract]
   - name: screen-summary
     type: Logic
     file: logica/navegacion/resumen.py

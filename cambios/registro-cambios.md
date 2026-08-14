@@ -347,3 +347,57 @@
   AVD, con cero sesiones Appium al terminar.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — Una captura tiene que mostrar algo
+
+**Archivos afectados:**
+
+- Creado `logica/evidencias/imagen.py`; creado `tests/test_evidence_is_evidence.py`.
+- Actualizados `logica/infraestructura/adb.py`, `logica/evidencias/capturas.py`,
+  `logica/navegacion/resumen.py` y `logica/servicios/mcp_server/controller.py`.
+- Actualizados `tests/test_screen_summary.py`, `.github/workflows/eca.yml`,
+  FASER del servidor, mapa global y `README.md`.
+
+**Motivo:**
+
+- Conduciendo el emulador como cliente MCP se miraron las capturas en vez de las
+  aserciones: las doce de la sesión eran un rectángulo blanco. Un solo color,
+  10.195 bytes exactos, por ADB y por Appium. El arnés devolvió `ok: true` en las
+  doce, porque solo comprobaba los bytes mágicos del PNG y la campaña solo
+  comprobaba que el fichero existiera.
+- La causa era el emulador arrancado con `-gpu swiftshader_indirect`, que es
+  justo lo que usaba el flujo de campaña recién escrito: en integración continua
+  se habrían subido cuarenta pruebas en blanco y todo habría pasado en verde.
+
+**Correcciones:**
+
+- Nuevo decodificador PNG con la biblioteca estándar, sin dependencias añadidas,
+  que responde si una imagen tiene alguna variación. Cuesta 25 ms sobre
+  1080x2400 y no juzga lo que no entiende: un PNG entrelazado se deja pasar en
+  vez de rechazarse por las bravas.
+- Las dos vías de captura, ADB y Appium, rechazan una imagen plana con
+  `EVIDENCE_WRITE_FAILED`, y la de Appium borra el fichero para que nadie lo
+  confunda luego con una prueba.
+- La campaña usa `-gpu swiftshader` directo, que sí produce fotogramas reales.
+- `bounds` y `screen` se publican para auditar la maqueta, con `layout_findings`
+  para lo que una máquina puede demostrar: fuera de pantalla, sin área, o control
+  menor que 48 dp en ambos ejes, convertidos con la densidad real leída del
+  dispositivo. La posición nunca se acepta como selector de entrada.
+
+**Hallazgos ECA y correcciones:**
+
+- El primer criterio de tamaño denunciaba una fila de 1080x84 en los Ajustes de
+  Android. Era un falso positivo: una fila ancha recortada por el scroll, no un
+  botón diminuto. El criterio pasó a exigir que ambos ejes queden por debajo del
+  mínimo, y la pantalla volvió a dar cero hallazgos, que es lo correcto.
+
+**Impacto:**
+
+- La evidencia de la campaña pasó de 10.195 bytes idénticos a 100-195 KB con
+  contenido real.
+- Banco completo en verde: 58 pruebas unitarias y 10 secuencias reales contra el
+  AVD, con cero sesiones Appium al terminar.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
