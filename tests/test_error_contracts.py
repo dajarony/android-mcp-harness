@@ -148,3 +148,33 @@ class AppVisibilityTests(unittest.IsolatedAsyncioTestCase):
             result = await controller().open_app("com.example.app")
 
         self.assertEqual(result["error"]["code"], "APP_NOT_FOUND")
+
+
+class ConnectionBudgetTests(unittest.IsolatedAsyncioTestCase):
+    """A slow machine is a declared condition, not an unclassified surprise.
+
+    The 10 s connection budget was measured on a warm local machine and written
+    into the contract as if it were universal. Creating a UiAutomator2 session
+    installs and starts a server APK on the device: cold, that is 30-60 s. Every
+    UI action failed on slower hardware, and said INTERNAL_ERROR while doing it.
+    """
+
+    async def test_a_slow_session_reports_operation_timeout(self) -> None:
+        with patch(
+            "logica.sesiones.appium.read_appium_status",
+            return_value={"appium_version": "3"},
+        ), patch(
+            "logica.sesiones.appium._connect", side_effect=TimeoutError("timed out")
+        ):
+            result = await controller("http://127.0.0.1:4723").tap_ui({"text": "Apps"})
+
+        self.assertEqual(result["error"]["code"], "OPERATION_TIMEOUT")
+
+    def test_the_connection_budget_is_configurable(self) -> None:
+        default = SettingsDemoConfig("http://127.0.0.1:4723", "emulator-5554")
+        chosen = SettingsDemoConfig(
+            "http://127.0.0.1:4723", "emulator-5554", connect_timeout_seconds=5
+        )
+
+        self.assertGreaterEqual(default.connect_timeout_seconds, 60)
+        self.assertEqual(chosen.connect_timeout_seconds, 5)

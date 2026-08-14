@@ -23,6 +23,7 @@ from appium.webdriver.client_config import AppiumClientConfig
 from appium.options.android import UiAutomator2Options
 
 from contratos.demo_settings import SettingsDemoConfig
+from contratos.mcp import HarnessError, McpErrorCode
 from logica.infraestructura.appium import read_appium_status
 from logica.infraestructura.lanzador import start_settings_apps
 from logica.seguridad.emulador import assert_emulator_udid, assert_local_appium_url
@@ -48,7 +49,18 @@ def create_device_driver(config: SettingsDemoConfig) -> Any:
     # first costs one local request and keeps the client from receiving
     # INTERNAL_ERROR when the FASER promises APPIUM_UNAVAILABLE.
     read_appium_status(config.appium_url)
-    return _connect(config, _base_options(config))
+    try:
+        return _connect(config, _base_options(config))
+    except TimeoutError as exc:
+        # Running out of time is a declared, recoverable condition. Letting it
+        # fall through to the generic handler told the client INTERNAL_ERROR and
+        # hid the one fact that would have explained it.
+        raise HarnessError(
+            McpErrorCode.OPERATION_TIMEOUT,
+            "Android did not finish opening an Appium session within "
+            f"{config.connect_timeout_seconds} s. A cold device installs a server "
+            "app first; raise ANDROID_MCP_CONNECT_TIMEOUT on slow hardware.",
+        ) from exc
 
 
 def _base_options(config: SettingsDemoConfig) -> UiAutomator2Options:
@@ -69,7 +81,7 @@ def _connect(config: SettingsDemoConfig, options: UiAutomator2Options) -> Any:
 
     client_config = AppiumClientConfig(
         remote_server_addr=config.appium_url,
-        timeout=10,
+        timeout=config.connect_timeout_seconds,
         direct_connection=False,
     )
     return webdriver.Remote(options=options, client_config=client_config)

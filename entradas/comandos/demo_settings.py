@@ -29,6 +29,7 @@ def load_config_from_environment() -> SettingsDemoConfig:
     return SettingsDemoConfig(
         appium_url=os.getenv("APPIUM_URL", "http://127.0.0.1:4723"),
         udid=os.getenv("ANDROID_UDID", "emulator-5554"),
+        connect_timeout_seconds=int(os.getenv("ANDROID_MCP_CONNECT_TIMEOUT", "120")),
     )
 
 

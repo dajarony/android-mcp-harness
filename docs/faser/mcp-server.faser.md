@@ -1,7 +1,7 @@
 ===============================================================
 Componente: Android Emulator MCP Server
 Tipo: Service / MCP Gateway
-Version: 0.5.0
+Version: 0.6.0
 Estado: Implementado y verificado en emulador local
 ===============================================================
 
@@ -189,7 +189,13 @@ inválido.
 - Ninguna acción deja sesión Appium viva: se comprueba consultando al propio
   Appium antes y después de una tanda con éxito y con fallo.
 - Cada captura usa una ruta única incluso en reintentos dentro del mismo segundo.
-- Presupuesto: conexión ≤10 s, operación UI ≤30 s, espera de marcador ≤20 s.
+- Presupuesto de conexión: `ANDROID_MCP_CONNECT_TIMEOUT`, 120 s por defecto.
+  Abrir una sesión UiAutomator2 instala y arranca una aplicación servidor en el
+  dispositivo: en frío son decenas de segundos, y el antiguo límite de 10 s solo
+  se cumplía en una máquina ya caliente. Agotarlo devuelve `OPERATION_TIMEOUT`,
+  nunca `INTERNAL_ERROR`.
+- Presupuesto de operación UI ≤30 s una vez abierta la sesión; espera de marcador
+  ≤20 s.
 - El transporte es stdio local; no se abre puerto de red.
 
 ## ERRORES Y FALLBACK

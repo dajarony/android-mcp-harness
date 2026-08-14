@@ -26,6 +26,10 @@ class SettingsDemoConfig:
 
     appium_url: str
     udid: str
+    # Creating a UiAutomator2 session installs and starts a server APK on the
+    # device. Cold, that is 30-60 s, and far more on a shared CI machine. The
+    # earlier 10 s budget was measured on a warm laptop and only ever held there.
+    connect_timeout_seconds: int = 120
 
 
 @dataclass(frozen=True)

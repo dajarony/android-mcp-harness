@@ -13,8 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       api_level:
-        description: Android API level to run the campaign against
-        default: "36"
+        description: One API level to run against. Empty runs the full matrix.
         type: string
 
 jobs:

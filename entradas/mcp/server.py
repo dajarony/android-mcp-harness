@@ -33,11 +33,12 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
         SettingsDemoConfig(
             appium_url=os.getenv("APPIUM_URL", "http://127.0.0.1:4723"),
             udid=os.getenv("ANDROID_UDID", "emulator-5554"),
+            connect_timeout_seconds=int(os.getenv("ANDROID_MCP_CONNECT_TIMEOUT", "120")),
         )
     )
     server = MCPServer(
         name="Android Emulator Harness",
-        version="0.5.0",
+        version="0.6.0",
         instructions=(
             "Controls only the configured disposable Android emulator. "
             "Use semantic UI tools and inspect returned evidence."

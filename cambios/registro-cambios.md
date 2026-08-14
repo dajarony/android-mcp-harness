@@ -401,3 +401,40 @@
   AVD, con cero sesiones Appium al terminar.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — El presupuesto de conexión se midió en una máquina caliente
+
+**Archivos afectados:**
+
+- Actualizados `contratos/demo_settings.py`, `logica/sesiones/appium.py`,
+  `entradas/mcp/server.py` y `entradas/comandos/demo_settings.py`.
+- Actualizados `tests/test_error_contracts.py`, `.github/workflows/eca.yml` y el
+  FASER del servidor.
+
+**Motivo:**
+
+- La primera ejecución real de la campaña en integración continua falló cuatro
+  secuencias con `INTERNAL_ERROR`. La causa, en el registro local: `TimeoutError`
+  al abrir la sesión Appium.
+- Abrir una sesión UiAutomator2 instala y arranca una aplicación servidor en el
+  dispositivo. En frío son decenas de segundos. El presupuesto de 10 s del
+  contrato se midió en una máquina ya caliente y se escribió como si fuera
+  universal; en hardware más lento, toda acción de UI fallaba.
+
+**Correcciones:**
+
+- Presupuesto de conexión configurable con `ANDROID_MCP_CONNECT_TIMEOUT`, 120 s
+  por defecto, separado del presupuesto de operación.
+- Agotarlo devuelve `OPERATION_TIMEOUT`, el código que el FASER ya declaraba,
+  en vez de `INTERNAL_ERROR`.
+- El `default` del parámetro de nivel de API anulaba la matriz: una ejecución
+  manual corría un solo nivel en vez de los dos. Eliminado.
+
+**Impacto:**
+
+- La campaña deja de depender de que la máquina que la ejecuta sea rápida.
+- Un cliente puede distinguir "tarda demasiado" de "algo desconocido ha fallado".
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.
