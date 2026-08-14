@@ -194,8 +194,9 @@ Un arnés serio se define por lo que **no** expone:
 - ❌ **No acepta coordenadas.** Ni del modelo, ni del cliente, ni por accidente.
 - ❌ **No usa el intérprete de comandos del sistema.** Todo va por `subprocess`
   con lista de argumentos: `;`, `&&`, `../..` y `--flags` mueren en la validación.
-- ❌ **No deja sesiones huérfanas.** Cada acción abre su sesión, la usa y la
-  cierra en `finally`, pase lo que pase.
+- ❌ **No deja sesiones huérfanas.** Sin `session_id`, cada acción abre su
+  sesión, la usa y la cierra en `finally`. Un flujo explícito se cierra con
+  `ui.session.close`, tras 60 s de inactividad o si vence su techo de acción.
 - ❌ **No hay dos dueños del emulador.** Un bloqueo único; la segunda operación
   simultánea recibe `EMULATOR_BUSY` de inmediato, sin cola.
 
@@ -452,7 +453,7 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 - [x] Segundo nivel de API en la campaña
 - [ ] Un AVD con capa de fabricante, no solo imágenes de Google
 - [x] Una prueba que recorra las dos piezas juntas: todo lo que el resumen ofrece, el localizador lo encuentra
-- [x] `ui.scroll` horizontal, para las pantallas de bienvenida con carrusel
+- [ ] Una campaña E2E para publicar `ui.scroll` horizontal en un carrusel real
 - [x] Encadenar acciones sin perder el estado entre sesiones
 - [x] `ui.tap` capaz de desambiguar sin recurrir a coordenadas
 - [x] Un cliente de referencia que recorra una app real de principio a fin
