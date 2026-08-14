@@ -283,7 +283,9 @@ docker build -t android-mcp-harness .
 docker run --rm android-mcp-harness
 ```
 
-81 pruebas en unos ocho segundos, sin Python, sin Node y sin SDK en tu máquina.
+El banco entero en unos ocho segundos, sin Python, sin Node y sin SDK en tu
+máquina. El número exacto de pruebas lo dice el propio comando, así que este
+párrafo no envejece.
 
 **El emulador no está dentro, a propósito.** Necesitaría `/dev/kvm`, que Docker
 Desktop en Windows y macOS no cede de forma fiable, y el driver UiAutomator2
