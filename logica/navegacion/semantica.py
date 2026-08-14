@@ -113,11 +113,35 @@ def _offered_instead(driver: Any) -> str:
     return f" The screen offers: {shown}{more}."
 
 
+def _find_input_hint(driver: Any, hint: str) -> Any | bool:
+    """Find an editable field even when UiAutomator2 cannot XPath its hint.
+
+    UiAutomator2 exposes ``hint`` in page source and through element attributes,
+    but its XPath engine does not necessarily index that attribute.  First find
+    only trusted EditText classes, then compare their observable attributes in
+    the local driver.  No caller-supplied XPath or position reaches Android.
+    """
+
+    editable = "//*[substring(@class, string-length(@class) - 7) = 'EditText']"
+    for element in driver.find_elements(AppiumBy.XPATH, editable):
+        candidates = [element, *element.find_elements(AppiumBy.XPATH, ".//*")]
+        for candidate in candidates:
+            for attribute in ("hint", "content-desc", "text"):
+                value = candidate.get_attribute(attribute) or ""
+                if hint in value:
+                    return element
+    return False
+
+
 def find_element(driver: Any, selector: SemanticSelector) -> Any:
     """Wait for exactly the declared semantic target, never a coordinate fallback."""
 
-    by, query = _locator(selector)
     try:
+        if selector.kind == "input_hint" and selector.within is None:
+            return WebDriverWait(driver, 10).until(
+                lambda active: _find_input_hint(active, selector.value)
+            )
+        by, query = _locator(selector)
         return WebDriverWait(driver, 10).until(
             lambda active: active.find_element(by, query)
         )

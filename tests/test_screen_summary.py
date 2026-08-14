@@ -295,6 +295,30 @@ class InputHintLocatorTests(unittest.TestCase):
 
         self.assertIn("string-length(@class) - 7) = 'EditText'", self.query)
 
+    def test_hint_attribute_falls_back_to_element_inspection_when_xpath_cannot_read_it(self) -> None:
+        """UiAutomator2 renders hint but does not always XPath-index it."""
+
+        from logica.navegacion.semantica import _find_input_hint
+
+        class Element:
+            def __init__(self, attributes: dict[str, str], children: list[object] | None = None) -> None:
+                self.attributes = attributes
+                self.children = children or []
+
+            def get_attribute(self, attribute: str) -> str:
+                return self.attributes.get(attribute, "")
+
+            def find_elements(self, _by: str, _query: str) -> list[object]:
+                return self.children
+
+        field = Element({"hint": "¿Qué necesitas comprar?"})
+
+        class Driver:
+            def find_elements(self, _by: str, _query: str) -> list[object]:
+                return [field]
+
+        self.assertIs(_find_input_hint(Driver(), "¿Qué necesitas"), field)
+
     def test_a_hostile_hint_stays_a_quoted_literal(self) -> None:
         from logica.navegacion.semantica import _locator
 
