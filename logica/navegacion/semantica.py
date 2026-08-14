@@ -57,13 +57,19 @@ def _locator(selector: SemanticSelector) -> tuple[str, str]:
         # selector to one Android version, which is exactly what it was invented
         # to avoid. A missing attribute simply does not match, so asking for all
         # four costs nothing.
+        # The class is matched by suffix, not by equality. Android's search field
+        # is a plain EditText on one release and an AppCompatEditText on another,
+        # and demanding the exact framework class made this selector fail on the
+        # very screen it was written for. XPath 1.0 has no ends-with, so the last
+        # eight characters are compared instead.
+        editable = "substring(@class, string-length(@class) - 7) = 'EditText'"
         return (
             AppiumBy.XPATH,
-            "//android.widget.EditText["
+            f"//*[{editable} and ("
             f"contains(@hint, {literal})"
             f" or contains(@content-desc, {literal})"
             f" or contains(@text, {literal})"
-            f" or .//*[contains(@content-desc, {literal})]]",
+            f" or .//*[contains(@content-desc, {literal})])]",
         )
     return AppiumBy.XPATH, f"//*[contains(@text, {literal})]"
 
@@ -80,10 +86,16 @@ def _offered_instead(driver: Any) -> str:
         summary = summarize_ui_tree(driver.page_source)
     except Exception:  # noqa: BLE001 - a diagnostic must never mask the real error
         return ""
-    labels = [action["label"] for action in summary["actions"] if action["label"]]
+    # The role travels with the label: knowing a target is an input rather than a
+    # button is what tells a caller whether to tap it or type into it.
+    labels = [
+        f"{action['label'][:40]!r} ({action['role']})"
+        for action in summary["actions"]
+        if action["label"]
+    ]
     if not labels:
         return ""
-    shown = ", ".join(repr(label[:40]) for label in labels[:10])
+    shown = ", ".join(labels[:10])
     more = f" and {len(labels) - 10} more" if len(labels) > 10 else ""
     return f" The screen offers: {shown}{more}."
 

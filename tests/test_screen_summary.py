@@ -193,8 +193,10 @@ class InputHintLocatorTests(unittest.TestCase):
                 self.assertIn(f"contains({attribute}, 'Search')", self.query)
         self.assertIn(".//*[contains(@content-desc, 'Search')]", self.query)
 
-    def test_it_still_only_ever_matches_a_text_field(self) -> None:
-        self.assertTrue(self.query.startswith("//android.widget.EditText["))
+    def test_it_matches_a_text_field_by_suffix_not_by_exact_class(self) -> None:
+        """AppCompatEditText is still an edit text; demanding equality was a bug."""
+
+        self.assertIn("string-length(@class) - 7) = 'EditText'", self.query)
 
     def test_a_hostile_hint_stays_a_quoted_literal(self) -> None:
         from logica.navegacion.semantica import _locator
@@ -215,8 +217,8 @@ class NotFoundIsActionableTests(unittest.TestCase):
 
         offered = _offered_instead(self._Driver(SCREEN))
 
-        self.assertIn("'Calendar'", offered)
-        self.assertIn("'Search'", offered)
+        self.assertIn("'Calendar' (button)", offered)
+        self.assertIn("'Search' (input)", offered)
 
     def test_a_broken_page_source_never_masks_the_real_error(self) -> None:
         from logica.navegacion.semantica import _offered_instead
