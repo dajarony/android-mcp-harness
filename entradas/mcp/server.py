@@ -22,6 +22,7 @@ from typing import Any
 from mcp.server import MCPServer
 
 from contratos.demo_settings import SettingsDemoConfig
+from logica.evidencias.capturas import read_artifact_bytes
 from logica.servicios.mcp_server.controller import AndroidMcpController
 
 
@@ -36,7 +37,7 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
     )
     server = MCPServer(
         name="Android Emulator Harness",
-        version="0.3.0",
+        version="0.4.0",
         instructions=(
             "Controls only the configured disposable Android emulator. "
             "Use semantic UI tools and inspect returned evidence."
@@ -50,10 +51,14 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
         return await active_controller.get_emulator_status()
 
     @server.tool(name="ui.get_tree")
-    async def ui_get_tree() -> dict[str, Any]:
-        """Read the current Android accessibility/UI tree without input events."""
+    async def ui_get_tree(include_raw: bool = False) -> dict[str, Any]:
+        """List what the current Android screen says and what can be acted on.
 
-        return await active_controller.get_ui_tree()
+        Every returned selector is one this server accepts for ui.tap and
+        ui.type_text. Set include_raw to also receive the full XML dump.
+        """
+
+        return await active_controller.get_ui_tree(include_raw)
 
     @server.tool(name="screen.capture")
     async def screen_capture() -> dict[str, Any]:
@@ -102,6 +107,17 @@ def build_server(controller: AndroidMcpController | None = None) -> MCPServer:
         """Perform one Android Back navigation on the configured emulator."""
 
         return await active_controller.go_back()
+
+    @server.resource(
+        "artifact://{artifact_id}",
+        name="Android evidence",
+        description="One screenshot this harness recorded, by its artifact_id.",
+        mime_type="image/png",
+    )
+    def read_evidence(artifact_id: str) -> bytes:
+        """Serve recorded evidence so a client without the filesystem can see it."""
+
+        return read_artifact_bytes(artifact_id)
 
     return server
 

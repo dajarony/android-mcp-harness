@@ -6,7 +6,7 @@
 # Salidas: mapa vivo para revisión humana o de agentes.
 
 system: android-mcp-harness
-version: 0.3.0
+version: 0.4.0
 last_updated: 2026-08-14
 sume_version: "1.0"
 
@@ -32,6 +32,7 @@ routes:
       - logica/infraestructura/appium.py
       - logica/infraestructura/lanzador.py
       - logica/navegacion/semantica.py
+      - logica/navegacion/resumen.py
       - logica/servicios/mcp_server/gate.py
       - logica/controladores/demo_settings.py
       - logica/evidencias/capturas.py
@@ -71,6 +72,7 @@ contracts:
     used_by:
       - entradas/mcp/server.py
       - logica/navegacion/semantica.py
+      - logica/navegacion/resumen.py
       - logica/servicios/mcp_server/controller.py
 
 modules:
@@ -105,7 +107,7 @@ modules:
   - name: android-mcp-controller
     type: Lógica
     file: logica/servicios/mcp_server/controller.py
-    depends_on: [emulator-operation-gate, adb-read-adapter, appium-status-adapter, demo-controller, app-launcher, semantic-navigation]
+    depends_on: [emulator-operation-gate, adb-read-adapter, appium-status-adapter, demo-controller, app-launcher, semantic-navigation, screen-summary]
   - name: emulator-operation-gate
     type: Lógica
     file: logica/servicios/mcp_server/gate.py
@@ -127,6 +129,10 @@ modules:
     type: Logic
     file: logica/infraestructura/lanzador.py
     depends_on: [adb-read-adapter, emulator-security-boundary, ui-control-contract]
+  - name: screen-summary
+    type: Logic
+    file: logica/navegacion/resumen.py
+    depends_on: [mcp-contract]
   - name: semantic-navigation
     type: Logic
     file: logica/navegacion/semantica.py

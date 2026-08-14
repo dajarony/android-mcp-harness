@@ -295,3 +295,55 @@
 - La evidencia de la campaña real queda descargable durante 14 días.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-14 — La pantalla, traducida al vocabulario del propio servidor
+
+**Archivos afectados:**
+
+- Creado `logica/navegacion/resumen.py`; creado `tests/test_screen_summary.py`.
+- Actualizados `logica/servicios/mcp_server/controller.py`,
+  `logica/evidencias/capturas.py` y `entradas/mcp/server.py`.
+- Actualizados `tests/test_mcp_emulator_e2e.py`, `.github/workflows/eca.yml`,
+  FASER del servidor, documento de módulo y `README.md`.
+
+**Motivo:**
+
+- `ui.get_tree` devolvía el volcado XML entero. Quien llamaba pagaba miles de
+  tokens de maquetación para encontrar una etiqueta y aún tenía que traducirla
+  por su cuenta al selector que este servidor acepta.
+- `screen.capture` devolvía una ruta local: un cliente que no comparte disco con
+  el arnés no podía ver nada.
+- La promesa de no dejar sesiones Appium vivas nunca se había medido.
+
+**Correcciones:**
+
+- `ui.get_tree` responde qué dice la pantalla (`texts`) y qué se puede accionar
+  (`actions`), y cada acción trae el selector que `ui.tap` y `ui.type_text`
+  aceptan, su `role`, si está habilitada y si es `ambiguous`. Medido sobre la
+  lista de aplicaciones de Ajustes: 1.815 bytes frente a 17.508, un 90 % menos.
+  El volcado sigue disponible con `include_raw`.
+- Los contenedores desplazables no se ofrecen como objetivos: `ui.scroll` actúa
+  sobre la pantalla y no acepta selector, así que se expone `can_scroll` en vez
+  de un blanco que no se puede apuntar y que además tomaba prestada la etiqueta
+  de su primer hijo.
+- La evidencia se publica como recurso MCP `artifact://{artifact_id}`. Solo
+  sirve identificadores con la forma que el arnés emite y comprueba que la ruta
+  resuelta siga dentro de `artifacts/`.
+- La campaña recorre dos niveles de API, no uno.
+- Añadida `INV-SESION-1`: se pregunta a Appium cuántas sesiones tiene antes y
+  después de una tanda con éxitos y con fallos. Requiere arrancar Appium con
+  `--allow-insecure='*:session_discovery'`, así que es explícita: una promesa
+  sin medir no es una promesa cumplida, y fingir lo contrario es peor que decir
+  que nunca se comprobó.
+
+**Impacto:**
+
+- Un modelo lee la pantalla, elige una entrada y la envía sin interpretar XML,
+  sin calcular posiciones y sin adivinar. `FLOW-SEL-1` lo comprueba contra el
+  AVD: un selector salido de `ui.get_tree` acierta en `ui.tap`.
+- Banco completo en verde: 45 pruebas unitarias y 9 secuencias reales contra el
+  AVD, con cero sesiones Appium al terminar.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.

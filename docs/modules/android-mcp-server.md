@@ -34,6 +34,8 @@ la navegación declarada `settings.open_apps`.
 ### Emits
 
 - Respuesta MCP normalizada de cada llamada, con `operation_id`.
+- Recurso `artifact://{artifact_id}` con la evidencia PNG, para clientes que no
+  comparten sistema de ficheros con el arnés.
 
 ### Listens
 

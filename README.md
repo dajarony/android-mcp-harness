@@ -44,8 +44,8 @@ Diez herramientas. Ni una más de las declaradas.
 | Herramienta | Parámetros | Devuelve |
 |---|---|---|
 | `emulator.get_status` | — | UDID, versión de Android, modelo y versión de Appium |
-| `ui.get_tree` | — | Jerarquía de accesibilidad completa de la pantalla actual |
-| `screen.capture` | — | PNG guardado en `artifacts/` + su identificador |
+| `ui.get_tree` | `include_raw?` | Lo que la pantalla **dice** y lo que se puede **pulsar**, con el selector de cada objetivo |
+| `screen.capture` | — | PNG en `artifacts/` + su `artifact_id` y su `uri` legible |
 | `app.list_installed` | — | Identificadores de paquete instalados |
 
 Las cuatro van por **ADB de solo lectura**. No abren sesión de Appium a
@@ -76,6 +76,54 @@ cinco claves, y solo una:
 
 Si nada encaja, la respuesta es `UI_ELEMENT_NOT_FOUND` con una captura del
 momento. Nunca hay un plan B de "pulsa en el centro y a ver qué pasa".
+
+### El bucle se cierra solo
+
+`ui.get_tree` no devuelve el volcado XML. Devuelve **la pantalla traducida al
+vocabulario que el propio servidor acepta**:
+
+```json
+{
+  "foreground_package": "com.android.settings",
+  "texts": ["All apps", "Calendar", "Clock", "…"],
+  "actions": [
+    {"selector": {"text": "Calendar"}, "label": "Calendar", "role": "button", "enabled": true},
+    {"selector": {"resource_id": "…:id/q"}, "label": "Search", "role": "input", "enabled": true},
+    {"selector": {"text": "Clock"},    "label": "Clock",    "role": "button", "ambiguous": true}
+  ],
+  "can_scroll": true
+}
+```
+
+Lo que sale de `ui.get_tree` entra tal cual en `ui.tap`. El modelo no interpreta
+XML, no calcula posiciones y no adivina: lee, elige una entrada y la envía.
+
+Tres detalles que importan:
+
+- **`role`** distingue lo que se pulsa de lo que se escribe de lo que se
+  conmuta, para que el modelo no intente teclear en un botón.
+- **`ambiguous`** aparece cuando ese selector encaja con más de un elemento.
+  Pulsar sería una moneda al aire, y es mejor decirlo que fallar en silencio.
+- **Los scrollables no se listan** como objetivos: `ui.scroll` actúa sobre la
+  pantalla y no acepta selector, así que ofrecerlos sería inventar un blanco.
+
+El volcado completo sigue disponible con `include_raw: true` para depurar un
+selector a mano. Simplemente ha dejado de ser el precio de mirar la pantalla:
+**17.508 bytes de XML frente a 1.815 del resumen, un 90 % menos**, medido sobre
+la lista de aplicaciones de Ajustes.
+
+### La evidencia se puede ver, no solo citar
+
+Cada captura se expone además como recurso MCP:
+
+```text
+artifact://20260814-004916-785289-screen.png
+```
+
+Un cliente que no comparta disco con el arnés lee ahí la imagen. El recurso solo
+sirve identificadores con la forma exacta que el arnés emite y comprueba que la
+ruta resuelta siga dentro de `artifacts/`: un recorrido de directorios no es
+representable.
 
 ---
 
@@ -238,12 +286,13 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 
 - ✅ **Verificado en local**: Android 16 (API 36), Appium 3.6, emulador
   `emulator-5554`. Presupuesto de ≤30 s por llamada cumplido con holgura.
-- ⚠️ **Un solo AVD probado.** Otro nivel de API o una capa de fabricante puede
-  mover selectores y tiempos.
-- ⚠️ **Sin reintentos** en la cadena de observación: un hipo puntual de
-  `uiautomator dump` se convierte en una llamada fallida.
-- ⚠️ **`screen.capture` devuelve una ruta local**, no la imagen: hoy asume que
-  cliente y arnés comparten sistema de ficheros.
+- ✅ **Sin sesiones huérfanas**, medido: se pregunta a Appium cuántas sesiones
+  tiene antes y después de una tanda con éxitos y con fallos.
+- ⚠️ **Dos niveles de API en la campaña** (34 y 36). Una capa de fabricante
+  encima de Android sigue pudiendo mover selectores y tiempos.
+- ⚠️ **El resumen es una opinión sobre la pantalla.** Marca lo ambiguo, pero un
+  diseño que no expone ni texto, ni `content-desc`, ni `resource-id` sigue sin
+  ser accionable por semántica — y eso es un problema de la app, no del arnés.
 - 🚫 **No integra agentes todavía.** Auralis, Trinidad y Glas serán *clientes*
   de esta frontera — nunca una ampliación de su autoridad.
 
@@ -251,12 +300,15 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 
 ## Hacia dónde va
 
-- [ ] Guardias de configuración aplicados en **todas** las puertas, no solo en las de lectura
-- [ ] Contrato FASER al día con las diez herramientas
-- [ ] Espera activa antes de declarar que una app no se abrió
-- [ ] Árbol UI resumido y filtrado en vez de XML crudo
-- [ ] Evidencia devuelta como contenido MCP, no como ruta
-- [ ] Segundo AVD y segundo nivel de API en la campaña
+- [x] Guardias de configuración aplicados en **todas** las puertas, no solo en las de lectura
+- [x] Contrato FASER al día con las diez herramientas
+- [x] Espera activa antes de declarar que una app no se abrió
+- [x] Árbol UI resumido y filtrado en vez de XML crudo
+- [x] Evidencia legible como recurso MCP, no como ruta
+- [x] Segundo nivel de API en la campaña
+- [ ] Un AVD con capa de fabricante, no solo imágenes de Google
+- [ ] `ui.tap` capaz de desambiguar sin recurrir a coordenadas
+- [ ] Un cliente de referencia que recorra una app real de principio a fin
 
 ---
 

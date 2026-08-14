@@ -33,6 +33,7 @@ from logica.infraestructura.adb import (
 )
 from logica.infraestructura.appium import read_appium_status
 from logica.infraestructura.lanzador import launch_package
+from logica.navegacion.resumen import summarize_ui_tree
 from logica.navegacion.semantica import (
     go_back,
     scroll,
@@ -70,10 +71,12 @@ class AndroidMcpController:
 
         return (await self._execute("emulator.get_status", self._read_status)).to_dict()
 
-    async def get_ui_tree(self) -> dict[str, Any]:
-        """Return a read-only Android UI hierarchy."""
+    async def get_ui_tree(self, include_raw: object = False) -> dict[str, Any]:
+        """Return a read-only, model-usable view of the current Android screen."""
 
-        return (await self._execute("ui.get_tree", self._read_tree)).to_dict()
+        return (
+            await self._execute("ui.get_tree", lambda: self._read_tree(include_raw))
+        ).to_dict()
 
     async def capture_screen(self) -> dict[str, Any]:
         """Capture the current Android screen without UI input."""
@@ -155,11 +158,16 @@ class AndroidMcpController:
         )
         return {**device, **appium}, None
 
-    async def _read_tree(self) -> tuple[dict[str, Any], None]:
-        """Read the current UI XML through the fixed ADB adapter."""
+    async def _read_tree(self, include_raw: object = False) -> tuple[dict[str, Any], None]:
+        """Read the screen and hand back what can be acted on, not the whole dump."""
 
-        tree = await asyncio.to_thread(read_ui_tree, self._config.udid)
-        return {"ui_tree": tree}, None
+        raw = await asyncio.to_thread(read_ui_tree, self._config.udid)
+        data = summarize_ui_tree(raw)
+        if include_raw is True:
+            # The dump stays reachable for a human debugging a selector; it is
+            # simply no longer the default price of looking at the screen.
+            data["ui_tree"] = raw
+        return data, None
 
     async def _capture_screen(self) -> tuple[dict[str, Any], dict[str, str]]:
         """Persist a read-only ADB screenshot and expose a safe artifact reference."""
@@ -334,4 +342,10 @@ class AndroidMcpController:
                 McpErrorCode.EVIDENCE_WRITE_FAILED,
                 "Evidence was produced outside the permitted artifacts directory.",
             ) from exc
-        return {"artifact_id": path.name, "path": f"artifacts/{relative.as_posix()}"}
+        return {
+            "artifact_id": path.name,
+            "path": f"artifacts/{relative.as_posix()}",
+            # A client that shares no filesystem with the harness reads the image
+            # here instead of being handed a path it cannot open.
+            "uri": f"artifact://{path.name}",
+        }

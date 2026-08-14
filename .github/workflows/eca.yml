@@ -19,9 +19,16 @@ on:
 
 jobs:
   campaign:
-    name: Campaign against API ${{ inputs.api_level || '36' }}
+    name: Campaign against API ${{ matrix.api_level }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # A single AVD proves the harness works there and nowhere else. Two API
+        # levels is the cheapest evidence that the selectors are not tuned to one
+        # Android release.
+        api_level: ${{ inputs.api_level && fromJSON(format('["{0}"]', inputs.api_level)) || fromJSON('["34", "36"]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -54,26 +61,28 @@ jobs:
 
       - name: Start Appium
         run: |
-          ./node_modules/.bin/appium --log appium.log &
+          # session_discovery lets the campaign prove no Appium session is left
+          # behind. It stays off outside CI: it is an insecure feature.
+          ./node_modules/.bin/appium --allow-insecure='*:session_discovery' --log appium.log &
           npx wait-on -t 60000 http://127.0.0.1:4723/status
 
       - name: Run the campaign on a disposable AVD
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: ${{ inputs.api_level || '36' }}
+          api-level: ${{ matrix.api_level }}
           target: google_apis
           arch: x86_64
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
           disable-animations: true
           script: |
             adb wait-for-device
-            ANDROID_MCP_RUN_EMULATOR=1 python -m unittest tests.test_mcp_emulator_e2e -v
+            ANDROID_MCP_RUN_EMULATOR=1 ANDROID_MCP_CHECK_SESSIONS=1 python -m unittest tests.test_mcp_emulator_e2e -v
 
       - name: Keep the evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eca-evidence-api-${{ inputs.api_level || '36' }}
+          name: eca-evidence-api-${{ matrix.api_level }}
           path: |
             artifacts/
             appium.log

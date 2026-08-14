@@ -7,8 +7,10 @@ emulator through the declared Settings flow.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+import urllib.request
 import unittest
 import xml.etree.ElementTree as element_tree
 from pathlib import Path
@@ -23,6 +25,21 @@ from entradas.mcp.server import build_server
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUN_EMULATOR_ECA = os.getenv("ANDROID_MCP_RUN_EMULATOR") == "1"
 TARGET_APP_PACKAGE = os.getenv("ANDROID_MCP_ECA_TARGET_PACKAGE")
+# Appium keeps session listing behind --allow-insecure=session_discovery, so this
+# check is opt-in rather than silently skipped: an unmeasured promise is not a
+# kept one, and pretending otherwise is worse than saying it was never run.
+CHECK_SESSIONS = os.getenv("ANDROID_MCP_CHECK_SESSIONS") == "1"
+
+
+def open_appium_sessions() -> int:
+    """Count sessions Appium still owns, or fail loudly if it will not say."""
+
+    with urllib.request.urlopen("http://127.0.0.1:4723/appium/sessions", timeout=5) as answer:
+        payload = json.load(answer)
+    sessions = payload.get("value")
+    if not isinstance(sessions, list):
+        raise AssertionError(f"Appium refused to list sessions: {payload}")
+    return len(sessions)
 
 
 def structured_payload(result: object) -> dict[str, object]:
@@ -70,8 +87,8 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(status["data"]["appium_version"])
         self.assertTrue(capture["data"]["captured"])
         self.assertEqual(
-            visible_package(before["data"]["ui_tree"]),
-            visible_package(after["data"]["ui_tree"]),
+            before["data"]["foreground_package"],
+            after["data"]["foreground_package"],
         )
 
         evidence = capture["evidence"]
@@ -89,8 +106,8 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(navigation["ok"])
         self.assertIn("All apps", navigation["data"]["screen_marker"])
         self.assertTrue(tree["ok"])
-        self.assertEqual(visible_package(tree["data"]["ui_tree"]), "com.android.settings")
-        self.assertIn("All apps", tree["data"]["ui_tree"])
+        self.assertEqual(tree["data"]["foreground_package"], "com.android.settings")
+        self.assertIn("All apps", tree["data"]["texts"])
 
         evidence = navigation["evidence"]
         self.assertIsNotNone(evidence)
@@ -210,8 +227,69 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(opened_search["ok"])
         self.assertTrue(typed["ok"])
         self.assertEqual(typed["data"]["characters_sent"], 4)
-        self.assertIn("Apps", tree["data"]["ui_tree"])
+        self.assertTrue(
+            any("Apps" in text for text in tree["data"]["texts"]),
+            tree["data"]["texts"][:20],
+        )
         self.assertTrue((PROJECT_ROOT / typed["evidence"]["path"]).is_file())
+
+    async def test_the_tree_hands_back_a_selector_that_actually_works(self) -> None:
+        """FLOW-SEL-1: what ui.get_tree offers, ui.tap must accept and hit.
+
+        This closes the loop the harness exists for: the model reads the screen
+        and gets back the exact vocabulary it must speak, with no XML parsing,
+        no coordinates and no guessing on its side.
+        """
+
+        async with Client(build_server()) as client:
+            await client.call_tool("settings.open_apps")
+            tree = structured_payload(await client.call_tool("ui.get_tree"))
+            offered = next(
+                action
+                for action in tree["data"]["actions"]
+                if action["enabled"] and not action.get("ambiguous")
+            )
+            tapped = structured_payload(
+                await client.call_tool("ui.tap", {"selector": offered["selector"]})
+            )
+
+        self.assertTrue(tree["ok"])
+        self.assertTrue(tapped["ok"], tapped.get("error"))
+        self.assertEqual(tapped["data"]["target"], offered["selector"])
+        self.assertTrue((PROJECT_ROOT / tapped["evidence"]["path"]).is_file())
+
+    async def test_the_summary_is_far_cheaper_than_the_raw_dump(self) -> None:
+        """The dump stays reachable, but looking at the screen stops costing it."""
+
+        async with Client(build_server()) as client:
+            summary = structured_payload(await client.call_tool("ui.get_tree"))
+            verbose = structured_payload(
+                await client.call_tool("ui.get_tree", {"include_raw": True})
+            )
+
+        raw_size = len(verbose["data"]["ui_tree"])
+        summary_size = len(json.dumps(summary["data"]))
+        self.assertNotIn("ui_tree", summary["data"])
+        self.assertLess(summary_size, raw_size)
+
+    @unittest.skipUnless(
+        CHECK_SESSIONS,
+        "Set ANDROID_MCP_CHECK_SESSIONS=1 with Appium started using "
+        "--allow-insecure=session_discovery.",
+    )
+    async def test_no_appium_session_survives_a_success_or_a_failure(self) -> None:
+        """INV-SESION-1: every action closes its session, including when it fails."""
+
+        before = open_appium_sessions()
+        async with Client(build_server()) as client:
+            await client.call_tool("settings.open_apps")
+            await client.call_tool("ui.scroll", {"direction": "down"})
+            await client.call_tool(
+                "ui.tap", {"selector": {"text": "NO_EXISTE_ECA_XYZ"}}
+            )
+            await client.call_tool("device.back")
+
+        self.assertEqual(open_appium_sessions(), before)
 
     @unittest.skipUnless(
         TARGET_APP_PACKAGE,
@@ -230,5 +308,5 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(opened["ok"])
         self.assertEqual(opened["data"]["foreground_package"], TARGET_APP_PACKAGE)
-        self.assertIn(f'package="{TARGET_APP_PACKAGE}"', tree["data"]["ui_tree"])
+        self.assertEqual(tree["data"]["foreground_package"], TARGET_APP_PACKAGE)
         self.assertTrue((PROJECT_ROOT / opened["evidence"]["path"]).is_file())

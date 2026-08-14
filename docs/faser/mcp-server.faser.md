@@ -1,7 +1,7 @@
 ===============================================================
 Componente: Android Emulator MCP Server
 Tipo: Service / MCP Gateway
-Version: 0.3.0
+Version: 0.4.0
 Estado: Implementado y verificado en emulador local
 ===============================================================
 
@@ -110,12 +110,21 @@ interno ni arranque de procesos.
 **Condición:** emulador disponible; no hay navegación activa. No requiere
 Appium: va por ADB de solo lectura.
 
-**Acción:** ejecutar la consulta ADB fija y de solo lectura `uiautomator dump`;
-extraer el XML y no abrir sesión Appium.
+**Acción:** ejecutar la consulta ADB fija y de solo lectura `uiautomator dump`,
+extraer el XML y reducirlo a lo que se puede leer y a lo que se puede accionar.
+No abre sesión Appium.
 
-**Resultado:** árbol estructurado y paquete visible, sin taps ni cambio UI.
+**Resultado:** `foreground_package`, `texts` con lo que dice la pantalla,
+`actions` con un objetivo por entrada y `can_scroll`. Cada acción trae el
+selector que **este mismo servidor acepta** en `ui.tap` y `ui.type_text`, su
+`role` (`button`, `input`, `toggle`, `long-press`), si está `enabled` y, cuando
+ese selector encaja con más de un elemento, `ambiguous: true`.
 
-**Error:** `UI_TREE_UNAVAILABLE`; cerrar siempre la sesión.
+El volcado completo no se entrega por defecto: cuesta unas diez veces más y
+obliga a quien llama a interpretar XML. Se pide con `include_raw: true` y llega
+en `ui_tree`.
+
+**Error:** `UI_TREE_UNAVAILABLE`, también si el volcado no se puede interpretar.
 
 ### Evento: `screen.capture`
 
@@ -125,7 +134,9 @@ Appium: va por ADB de solo lectura.
 **Acción:** ejecutar la consulta ADB fija y de solo lectura `screencap -p`,
 guardar una captura bajo `artifacts/` y no abrir sesión Appium.
 
-**Resultado:** `artifact_id` y ruta local; sin cambio UI intencionado.
+**Resultado:** `artifact_id`, ruta local y `uri` `artifact://<artifact_id>`; sin
+cambio UI intencionado. La imagen se lee como recurso MCP, de modo que un
+cliente que no comparte disco con el arnés también puede verla.
 
 **Error:** `EVIDENCE_WRITE_FAILED`; nunca afirmar éxito sin evidencia.
 
@@ -162,6 +173,11 @@ guardar una captura bajo `artifacts/` y no abrir sesión Appium.
 - Navegación usa selectores semánticos; coordenadas no forman parte del contrato.
 - Toda sesión abierta se cierra incluso con timeout o excepción.
 - La captura queda en `artifacts/`, directorio ignorado por Git.
+- El recurso `artifact://{artifact_id}` sirve únicamente identificadores con la
+  forma que este arnés emite, y comprueba que la ruta resuelta siga dentro de
+  `artifacts/`. Un recorrido de directorios no es representable.
+- Ninguna acción deja sesión Appium viva: se comprueba consultando al propio
+  Appium antes y después de una tanda con éxito y con fallo.
 - Cada captura usa una ruta única incluso en reintentos dentro del mismo segundo.
 - Presupuesto: conexión ≤10 s, operación UI ≤30 s, espera de marcador ≤20 s.
 - El transporte es stdio local; no se abre puerto de red.
