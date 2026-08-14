@@ -74,8 +74,21 @@ cinco claves, y solo una:
 {"input_hint": "Search"}                             // campo por su pista
 ```
 
+Un valor de selector puede llevar saltos de línea, porque Flutter funde los
+textos de un widget en una sola descripción separada por ellos: `Historial\nTab
+2 of 3` es como esa pestaña se llama de verdad.
+
 Si nada encaja, la respuesta es `UI_ELEMENT_NOT_FOUND` con una captura del
-momento. Nunca hay un plan B de "pulsa en el centro y a ver qué pasa".
+momento — y **con lo que la pantalla sí ofrece**:
+
+```text
+No visible element matched 'input_hint' before timeout.
+The screen offers: 'Android Auto' (button), 'Calendar' (button),
+                   'Search…' (input), 'More options' (button).
+```
+
+Un callejón sin salida que nombra las alternativas es un reintento, no un
+callejón. Nunca hay un plan B de "pulsa en el centro y a ver qué pasa".
 
 ### El bucle se cierra solo
 
@@ -87,18 +100,22 @@ vocabulario que el propio servidor acepta**:
   "foreground_package": "com.android.settings",
   "texts": ["All apps", "Calendar", "Clock", "…"],
   "actions": [
-    {"selector": {"text": "Calendar"}, "label": "Calendar", "role": "button", "enabled": true},
+    {"selector": {"text": "Calendar"}, "label": "Calendar", "role": "button",
+     "enabled": true, "bounds": {"left": 0, "top": 525, "width": 1080, "height": 199}},
     {"selector": {"resource_id": "…:id/q"}, "label": "Search", "role": "input", "enabled": true},
-    {"selector": {"text": "Clock"},    "label": "Clock",    "role": "button", "ambiguous": true}
+    {"selector": {"text": "Clock"}, "label": "Clock", "role": "button", "ambiguous": true},
+    {"selector": {"content_desc": "Historial\nTab 2 of 3"}, "label": "Historial",
+     "role": "button", "covered_by_keyboard": true}
   ],
-  "can_scroll": true
+  "can_scroll": true,
+  "keyboard": {"open": true, "top": 1517}
 }
 ```
 
 Lo que sale de `ui.get_tree` entra tal cual en `ui.tap`. El modelo no interpreta
 XML, no calcula posiciones y no adivina: lee, elige una entrada y la envía.
 
-Tres detalles que importan:
+Cuatro detalles que importan:
 
 - **`role`** distingue lo que se pulsa de lo que se escribe de lo que se
   conmuta, para que el modelo no intente teclear en un botón.
@@ -367,11 +384,19 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 - ✅ **Dos niveles de API en verde** (34 y 36), en máquinas que no son la mía.
   Llegar ahí costó seis vueltas y descubrió que el buscador de Ajustes es una
   clase distinta en cada versión de Android.
+- ✅ **Probado contra una aplicación Flutter ajena**, no solo contra Ajustes.
+  Ese recorrido encontró tres fallos del propio arnés y devolvió un informe de
+  accesibilidad utilizable sobre la app.
 - ⚠️ **Una capa de fabricante** encima de Android sigue pudiendo mover selectores
   y tiempos. No está probado.
 - ⚠️ **El resumen es una opinión sobre la pantalla.** Marca lo ambiguo, pero un
   diseño que no expone ni texto, ni `content-desc`, ni `resource-id` sigue sin
   ser accionable por semántica — y eso es un problema de la app, no del arnés.
+- ⚠️ **`ui.scroll` solo hace gestos verticales.** Un carrusel horizontal, que es
+  como avanza la mitad de las pantallas de bienvenida, queda fuera de su alcance.
+- ⚠️ **Cada acción abre y cierra su sesión.** Es lo que mantiene la promesa de no
+  dejar estado huérfano, pero encadenar escribir-y-enviar pierde el contenido del
+  campo por el camino.
 - 🚫 **No integra agentes todavía.** Auralis, Trinidad y Glas serán *clientes*
   de esta frontera — nunca una ampliación de su autoridad.
 
@@ -387,6 +412,8 @@ Un proyecto que esconde dónde no llega no es serio. Esto es lo que hay:
 - [x] Segundo nivel de API en la campaña
 - [ ] Un AVD con capa de fabricante, no solo imágenes de Google
 - [ ] Una prueba que recorra las dos piezas juntas: todo lo que el resumen ofrece, el localizador lo encuentra
+- [ ] `ui.scroll` horizontal, para las pantallas de bienvenida con carrusel
+- [ ] Encadenar acciones sin perder el estado entre sesiones
 - [ ] `ui.tap` capaz de desambiguar sin recurrir a coordenadas
 - [ ] Un cliente de referencia que recorra una app real de principio a fin
 
