@@ -24,7 +24,7 @@ from typing import Any
 from contratos.demo_settings import SettingsDemoConfig
 from contratos.mcp import HarnessError, McpErrorCode, McpToolResult
 from logica.controladores.demo_settings import run_settings_demo
-from logica.evidencias.capturas import ARTIFACTS, save_png_artifact, save_screenshot
+from logica.evidencias.capturas import ARTIFACTS, save_png_artifact
 from logica.infraestructura.adb import (
     read_display_density,
     read_keyboard_frame,
@@ -44,6 +44,7 @@ from logica.navegacion.semantica import (
 )
 from logica.seguridad.emulador import assert_emulator_udid
 from logica.servicios.mcp_server.gate import EmulatorOperationGate
+from logica.servicios.mcp_server.ejecutor_ui import UiActionExecutor
 from logica.sesiones.appium import close_driver, create_device_driver
 from logica.sesiones.flujo import UiFlowSessions
 from contratos.ui_control import (
@@ -71,6 +72,16 @@ class AndroidMcpController:
         self._density: int | None = None
         self._flows = UiFlowSessions(
             config.flow_idle_timeout_seconds, config.action_timeout_seconds
+        )
+        # These deferred lookups deliberately preserve the controller-level
+        # test seam: tests can replace the adapters after constructing the
+        # controller, while the executor stays independent of Appium imports.
+        self._ui_actions = UiActionExecutor(
+            config,
+            self._flows,
+            lambda current_config: create_device_driver(current_config),
+            lambda driver: close_driver(driver),
+            self._artifact_reference,
         )
 
     async def get_emulator_status(self) -> dict[str, Any]:
@@ -204,10 +215,7 @@ class AndroidMcpController:
             # A flow owns an Appium session precisely to keep intermediate UI
             # state coherent.  Its page source is the authoritative snapshot
             # after typing, rather than racing a second transport through ADB.
-            async with self._flows.use(session_id) as driver:
-                raw = await self._before_the_ceiling(
-                    asyncio.to_thread(lambda: str(driver.page_source))
-                )
+            raw = await self._ui_actions.flow_page_source(session_id)
         if self._density is None:
             # Density does not change while a device is up, so one read is enough
             # to express sizes in dp instead of meaningless pixels.
@@ -313,7 +321,7 @@ class AndroidMcpController:
         """Validate then tap the one requested semantic target."""
 
         selector = validate_selector(raw_selector)
-        return await self._run_ui_action(
+        return await self._ui_actions.run(
             "ui-tap",
             lambda driver: {
                 "target": selector_mapping(selector),
@@ -329,7 +337,7 @@ class AndroidMcpController:
 
         selector = validate_selector(raw_selector)
         text = validate_text(raw_text)
-        return await self._run_ui_action(
+        return await self._ui_actions.run(
             "ui-type",
             lambda driver: {
                 "target": selector_mapping(selector),
@@ -344,7 +352,7 @@ class AndroidMcpController:
         """Validate direction then execute one trusted normalized scroll."""
 
         direction = validate_scroll_direction(raw_direction)
-        return await self._run_ui_action(
+        return await self._ui_actions.run(
             "ui-scroll",
             lambda driver: self._scroll_action(driver, direction),
             session_id,
@@ -355,89 +363,11 @@ class AndroidMcpController:
     ) -> tuple[dict[str, Any], dict[str, str] | None]:
         """Run one Back action through a transient Appium session."""
 
-        return await self._run_ui_action(
+        return await self._ui_actions.run(
             "device-back",
             lambda driver: {"back_to_package": go_back(driver)},
             session_id,
         )
-
-    async def _run_ui_action(
-        self,
-        evidence_label: str,
-        action: Callable[[Any], dict[str, Any]],
-        session_id: object = None,
-    ) -> tuple[dict[str, Any], dict[str, str] | None]:
-        """Own the session lifecycle and evidence policy for a single UI action."""
-
-        if session_id is not None:
-            async with self._flows.use(session_id) as driver:
-                return await self._run_driver_action(driver, evidence_label, action)
-
-        await self._flows.assert_idle()
-        driver: Any | None = None
-        try:
-            driver = await asyncio.to_thread(create_device_driver, self._config)
-            return await self._run_driver_action(driver, evidence_label, action)
-        finally:
-            if driver is not None:
-                # Closing is a driver call too, and it runs holding the gate.
-                await self._before_the_ceiling(
-                    asyncio.to_thread(close_driver, driver)
-                )
-
-    async def _run_driver_action(
-        self,
-        driver: Any,
-        evidence_label: str,
-        action: Callable[[Any], dict[str, Any]],
-    ) -> tuple[dict[str, Any], dict[str, str] | None]:
-        """Execute against either a transient driver or an owned flow driver."""
-
-        try:
-            data = await self._before_the_ceiling(asyncio.to_thread(action, driver))
-            # Every one of these touches the driver while the gate is held, so
-            # every one is under the ceiling. This line used to be a plain
-            # synchronous call: a driver that stopped answering froze the whole
-            # event loop, which is worse than holding the gate, because then not
-            # even the ceiling could fire.
-            data["foreground_package"] = await self._before_the_ceiling(
-                asyncio.to_thread(lambda: str(driver.current_package))
-            )
-            screenshot = await self._before_the_ceiling(
-                asyncio.to_thread(save_screenshot, driver, evidence_label)
-            )
-            return data, self._artifact_reference(screenshot)
-        except TimeoutError as exc:
-            # Deliberately not wrapped in failure evidence: the driver is the
-            # thing that stopped answering, so asking it for a screenshot would
-            # hang for a second time.
-            raise HarnessError(
-                McpErrorCode.OPERATION_TIMEOUT,
-                "The Android UI action did not finish within "
-                f"{self._config.action_timeout_seconds} s and was abandoned so the "
-                "emulator stays usable. Raise ANDROID_MCP_ACTION_TIMEOUT if the "
-                "device is simply slow.",
-            ) from exc
-        except HarnessError as exc:
-            raise await self._with_failure_evidence(exc, driver, evidence_label) from exc
-        except Exception as exc:
-            error = HarnessError(
-                McpErrorCode.INTERNAL_ERROR,
-                "The Android UI action failed unexpectedly; inspect local evidence and logs.",
-            )
-            raise await self._with_failure_evidence(error, driver, evidence_label) from exc
-
-    async def _before_the_ceiling(self, work: Awaitable[Any]) -> Any:
-        """Stop waiting on a driver call that has stopped answering.
-
-        A worker thread cannot be killed, so the abandoned command keeps running
-        against a driver nobody will read again. That is accepted on purpose:
-        what matters is that the coroutine unwinds, the flow lease is voided and
-        the emulator lock is released, instead of one hung call freezing every
-        client until the process is restarted.
-        """
-
-        return await asyncio.wait_for(work, self._config.action_timeout_seconds)
 
     @staticmethod
     def _scroll_action(driver: Any, direction: str) -> dict[str, Any]:
@@ -445,28 +375,6 @@ class AndroidMcpController:
 
         scroll(driver, direction)
         return {"direction": direction}
-
-    async def _with_failure_evidence(
-        self,
-        error: HarnessError,
-        driver: Any | None,
-        label: str,
-    ) -> HarnessError:
-        """Attach a best-effort local screenshot without hiding the original cause.
-
-        Bounded like every other driver touch: proving what went wrong must never
-        become a second way to hang while holding the gate.
-        """
-
-        if driver is None:
-            return error
-        try:
-            screenshot = await self._before_the_ceiling(
-                asyncio.to_thread(save_screenshot, driver, f"failure-{label}")
-            )
-            return HarnessError(error.code, error.message, self._artifact_reference(screenshot))
-        except Exception:
-            return error
 
     @staticmethod
     def _artifact_reference(path: Path) -> dict[str, str]:
