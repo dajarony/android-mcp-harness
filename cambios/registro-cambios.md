@@ -810,3 +810,32 @@
 - El banco unitario conserva 115 pruebas en verde; no cambia el contrato MCP.
 
 **Autor:** Dajarony Ysaac Guzmán Marmolejos.
+
+---
+
+## 2026-08-15 — Guardián de deriva del mapa SUME
+
+**Archivos afectados:**
+
+- Creado `tests/test_architecture_map.py`; actualizados README y FASER de
+  control UI.
+
+**Motivo:**
+
+- Los módulos nuevos de resumen y ejecución Appium existieron antes de que el
+  mapa los nombrara. Corregir la prosa resolvía el caso puntual, pero no impedía
+  repetir la familia de deriva.
+
+**Corrección:**
+
+- El banco compara los módulos Python rastreados bajo `logica/` con las entradas
+  `file:` de `mapa-global/arquitectura.yaml`. Falla si falta un módulo, si el
+  mapa conserva uno inexistente o si lo declara más de una vez.
+
+**Verificación:**
+
+- Cuatro regresiones propias del guardia —incluido un módulo directamente bajo
+  `logica/`— y el banco completo de 120 pruebas en
+  verde.
+
+**Autor:** Dajarony Ysaac Guzmán Marmolejos.

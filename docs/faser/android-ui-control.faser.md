@@ -190,6 +190,8 @@ cerrar.
 - Tras cada éxito o error, una operación posterior puede adquirir el gate.
 - Con un UDID de teléfono físico, las seis acciones responden
   `EMULATOR_UNAVAILABLE` y un Appium espía recibe cero peticiones.
+- El mapa SUME enumera una vez cada módulo Python rastreado bajo `logica/`; un
+  fichero nuevo sin mapa, una entrada eliminada o un duplicado falla el banco.
 
 ## DECISIONES
 
