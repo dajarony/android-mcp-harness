@@ -78,10 +78,10 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             capture = structured_payload(await client.call_tool("screen.capture"))
             after = structured_payload(await client.call_tool("ui.get_tree"))
 
-        self.assertTrue(before["ok"])
-        self.assertTrue(status["ok"])
-        self.assertTrue(capture["ok"])
-        self.assertTrue(after["ok"])
+        self.assertTrue(before["ok"], before.get("error"))
+        self.assertTrue(status["ok"], status.get("error"))
+        self.assertTrue(capture["ok"], capture.get("error"))
+        self.assertTrue(after["ok"], after.get("error"))
         self.assertEqual(status["data"]["udid"], "emulator-5554")
         self.assertTrue(status["data"]["android_version"])
         self.assertTrue(status["data"]["appium_version"])
@@ -103,9 +103,9 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             navigation = structured_payload(await client.call_tool("settings.open_apps"))
             tree = structured_payload(await client.call_tool("ui.get_tree"))
 
-        self.assertTrue(navigation["ok"])
+        self.assertTrue(navigation["ok"], navigation.get("error"))
         self.assertIn("All apps", navigation["data"]["screen_marker"])
-        self.assertTrue(tree["ok"])
+        self.assertTrue(tree["ok"], tree.get("error"))
         self.assertEqual(tree["data"]["foreground_package"], "com.android.settings")
         self.assertIn("All apps", tree["data"]["texts"])
 
@@ -120,8 +120,8 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             first = structured_payload(await client.call_tool("screen.capture"))
             second = structured_payload(await client.call_tool("screen.capture"))
 
-        self.assertTrue(first["ok"])
-        self.assertTrue(second["ok"])
+        self.assertTrue(first["ok"], first.get("error"))
+        self.assertTrue(second["ok"], second.get("error"))
         self.assertNotEqual(
             first["evidence"]["artifact_id"],
             second["evidence"]["artifact_id"],
@@ -164,7 +164,7 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             },
         )
         payload = structured_payload(result)
-        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["ok"], payload.get("error"))
         self.assertEqual(payload["tool"], "emulator.get_status")
 
     async def test_semantic_navigation_controls_settings_without_coordinates(self) -> None:
@@ -183,14 +183,14 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             )
             backed = structured_payload(await client.call_tool("device.back"))
 
-        self.assertTrue(packages["ok"])
+        self.assertTrue(packages["ok"], packages.get("error"))
         self.assertIn("com.android.settings", packages["data"]["packages"])
-        self.assertTrue(settings_apps["ok"])
-        self.assertTrue(tapped["ok"])
+        self.assertTrue(settings_apps["ok"], settings_apps.get("error"))
+        self.assertTrue(tapped["ok"], tapped.get("error"))
         self.assertEqual(tapped["data"]["target"], {"text": "Calendar"})
-        self.assertTrue(scrolled["ok"])
+        self.assertTrue(scrolled["ok"], scrolled.get("error"))
         self.assertEqual(scrolled["data"]["direction"], "down")
-        self.assertTrue(backed["ok"])
+        self.assertTrue(backed["ok"], backed.get("error"))
         self.assertEqual(backed["data"]["foreground_package"], "com.android.settings")
 
         for payload in (settings_apps, tapped, scrolled, backed):
@@ -224,8 +224,8 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             )
             tree = structured_payload(await client.call_tool("ui.get_tree"))
 
-        self.assertTrue(opened_search["ok"])
-        self.assertTrue(typed["ok"])
+        self.assertTrue(opened_search["ok"], opened_search.get("error"))
+        self.assertTrue(typed["ok"], typed.get("error"))
         self.assertEqual(typed["data"]["characters_sent"], 4)
         self.assertTrue(
             any("Apps" in text for text in tree["data"]["texts"]),
@@ -253,7 +253,7 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
                 await client.call_tool("ui.tap", {"selector": offered["selector"]})
             )
 
-        self.assertTrue(tree["ok"])
+        self.assertTrue(tree["ok"], tree.get("error"))
         self.assertTrue(tapped["ok"], tapped.get("error"))
         self.assertEqual(tapped["data"]["target"], offered["selector"])
         self.assertTrue((PROJECT_ROOT / tapped["evidence"]["path"]).is_file())
@@ -306,7 +306,7 @@ class McpEmulatorEcaTests(unittest.IsolatedAsyncioTestCase):
             )
             tree = structured_payload(await client.call_tool("ui.get_tree"))
 
-        self.assertTrue(opened["ok"])
+        self.assertTrue(opened["ok"], opened.get("error"))
         self.assertEqual(opened["data"]["foreground_package"], TARGET_APP_PACKAGE)
         self.assertEqual(tree["data"]["foreground_package"], TARGET_APP_PACKAGE)
         self.assertTrue((PROJECT_ROOT / opened["evidence"]["path"]).is_file())
