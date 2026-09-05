@@ -3,7 +3,7 @@
 # Tipo: Mapa global
 # Entradas: módulos y contratos del arnés.
 # Acciones: documenta las dependencias y la dirección de datos.
-# Salidas: mapa vivo para revisión humana o de agentes.
+# Salidas: mapa vivo para revisión y mantenimiento técnico.
 
 system: android-mcp-harness
 version: 0.8.0
